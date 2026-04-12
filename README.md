@@ -62,6 +62,8 @@ https://raw.githubusercontent.com/alvinunreal/oh-my-opencode-slim/refs/heads/mas
 
 **Detailed installation guide:** [docs/installation.md](docs/installation.md)
 
+**Local fork setup:** [LOCAL_SETUP.md](LOCAL_SETUP.md)
+
 ### ✅ Verify Your Setup
 
 After installation and authentication, verify all agents are configured and responding:
