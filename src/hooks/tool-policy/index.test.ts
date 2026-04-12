@@ -77,6 +77,16 @@ describe('createToolPolicyHook', () => {
     expect(
       classifyToolExecution({
         tool: 'bash',
+        args: {
+          command: 'npm ci',
+          workdir: '/Users/mdoan/Projects/Bubbler/frontend',
+        },
+      }),
+    ).toEqual({ decision: 'allow', category: 'repo-frontend-install' });
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
         args: { command: 'tar -tf fixture.tar' },
       }),
     ).toEqual({ decision: 'allow', category: 'tar-list' });
@@ -144,14 +154,64 @@ describe('createToolPolicyHook', () => {
         tool: 'bash',
         args: { command: 'wget https://example.com/file.txt' },
       }).decision,
+    ).toBe('deny');
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: {
+          command: 'tar -xf archive.tar -C fixtures/imports',
+          workdir: '/Users/mdoan/Projects/clipper',
+        },
+      }).decision,
     ).toBe('ask');
 
     expect(
       classifyToolExecution({
         tool: 'bash',
-        args: { command: 'tar -xf archive.tar -C /tmp/out' },
+        args: {
+          command: 'wget -P fixtures/imports https://example.com/file.txt',
+          workdir: '/Users/mdoan/Projects/clipper',
+        },
       }).decision,
     ).toBe('ask');
+  });
+
+  test('denies unsafe archive extraction and broad remote wget downloads', () => {
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: {
+          command: 'tar -xf archive.tar -C /tmp/out',
+          workdir: '/Users/mdoan/Projects/clipper',
+        },
+      }).decision,
+    ).toBe('deny');
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: {
+          command: 'unzip archive.zip -d downloads/raw',
+          workdir: '/Users/mdoan/Projects/clipper',
+        },
+      }).decision,
+    ).toBe('ask');
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: {
+          command: 'wget https://example.com/file.txt',
+          workdir: '/Users/mdoan/Projects/clipper',
+        },
+      }),
+    ).toEqual({
+      decision: 'deny',
+      category: 'wget-remote',
+      reason:
+        'Remote wget downloads arbitrary files outside reviewed repo-scoped targets.',
+    });
   });
 
   test('allows localhost writes and profiler commands', () => {

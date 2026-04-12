@@ -6,6 +6,12 @@ import type {
 } from './types';
 
 const LOCALHOST_PATTERN = /(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])/;
+const ABSOLUTE_PATH_PATTERN = /^(?:\/|~\/)/;
+const NPM_INSTALL_PATTERN = /\bnpm\s+(?:install|ci)\b/;
+const WGET_REMOTE_PATTERN = /\bwget\s+/;
+const TAR_EXTRACT_PATTERN =
+  /\btar\s.*(?:-[a-zA-Z]*x[a-zA-Z]*\b|\bx[a-zA-Z]*\b)/;
+const UNZIP_EXTRACT_PATTERN = /\bunzip\s+(?!-l\b)/;
 
 const REPO_FRONTEND_INSTALL_PATTERN =
   /(?:^|&&|;)\s*cd\s+(?:\.\/)?(?:frontend|src\/clipper-frontend)\s*&&\s*npm\s+(?:install|ci)\b|\bnpm\s+--prefix\s+(?:\.\/)?(?:frontend|src\/clipper-frontend)\s+(?:install|ci)\b/;
@@ -30,7 +36,6 @@ const ALLOW_BASH_PATTERNS: Array<[RegExp, string]> = [
   [/\bunzip\s+-l\b/, 'unzip-list'],
   [TAR_LIST_PATTERN, 'tar-list'],
   [SAFE_ENV_COMMAND_PATTERN, 'env-safe-command'],
-  [REPO_FRONTEND_INSTALL_PATTERN, 'repo-frontend-install'],
   [/\b(?:py-spy|memray|scalene)\b/, 'profiler'],
 ];
 
@@ -208,15 +213,193 @@ function extractCommand(
   return undefined;
 }
 
-function classifyBashCommand(command: string): ToolPolicyEvaluation {
+function extractWorkingDirectory(
+  container?: Record<string, unknown>,
+): string | undefined {
+  if (!container) return undefined;
+
+  for (const key of ['workdir', 'cwd'] as const) {
+    const value = getString(container[key]);
+    if (value) return value;
+  }
+
+  for (const key of [
+    'args',
+    'input',
+    'toolInput',
+    'tool_input',
+    'toolArgs',
+    'tool_args',
+  ] as const) {
+    const nested = getRecord(container[key]);
+    for (const nestedKey of ['workdir', 'cwd'] as const) {
+      const value = getString(nested?.[nestedKey]);
+      if (value) return value;
+    }
+  }
+
+  return undefined;
+}
+
+function isKnownFrontendDirectory(path: string): boolean {
+  const normalized = path.replace(/\\/g, '/').replace(/\/$/, '');
+  return (
+    normalized.endsWith('/frontend') ||
+    normalized.endsWith('/src/clipper-frontend') ||
+    normalized === 'frontend' ||
+    normalized === 'src/clipper-frontend'
+  );
+}
+
+function isRepoScopedRelativePath(path: string): boolean {
+  const normalized = path.replace(/\\/g, '/').replace(/^\.\//, '');
+  if (normalized.includes('..') || ABSOLUTE_PATH_PATTERN.test(normalized)) {
+    return false;
+  }
+
+  const firstSegment = normalized.split('/')[0];
+  return [
+    'tmp',
+    'temp',
+    'fixtures',
+    'fixture',
+    'downloads',
+    'artifacts',
+    'cache',
+    'test-data',
+  ].includes(firstSegment);
+}
+
+function isRepoScopedAbsolutePath(path: string, workdir?: string): boolean {
+  if (!workdir) return false;
+  const normalizedPath = path.replace(/\\/g, '/');
+  const normalizedWorkdir = workdir.replace(/\\/g, '/').replace(/\/$/, '');
+  return normalizedPath.startsWith(`${normalizedWorkdir}/`);
+}
+
+function isRepoScopedPath(path: string, workdir?: string): boolean {
+  return (
+    isRepoScopedRelativePath(path) || isRepoScopedAbsolutePath(path, workdir)
+  );
+}
+
+function extractArchiveTarget(command: string): string | undefined {
+  const tarTarget = command.match(/(?:^|\s)-C\s+([^\s]+)/);
+  if (tarTarget) {
+    return tarTarget[1]?.replace(/^['"]|['"]$/g, '');
+  }
+
+  const unzipTarget = command.match(/(?:^|\s)-d\s+([^\s]+)/);
+  if (unzipTarget) {
+    return unzipTarget[1]?.replace(/^['"]|['"]$/g, '');
+  }
+
+  return undefined;
+}
+
+function extractWgetTarget(command: string): string | undefined {
+  const outputMatch = command.match(/(?:^|\s)-O\s+([^\s]+)/);
+  if (outputMatch) {
+    return outputMatch[1]?.replace(/^['"]|['"]$/g, '');
+  }
+
+  const dirMatch = command.match(/(?:^|\s)-P\s+([^\s]+)/);
+  if (dirMatch) {
+    return dirMatch[1]?.replace(/^['"]|['"]$/g, '');
+  }
+
+  return undefined;
+}
+
+function classifyContextualAllow(
+  command: string,
+  workdir?: string,
+): ToolPolicyEvaluation | null {
+  if (REPO_FRONTEND_INSTALL_PATTERN.test(command)) {
+    return { decision: 'allow', category: 'repo-frontend-install' };
+  }
+
+  if (
+    NPM_INSTALL_PATTERN.test(command) &&
+    workdir &&
+    isKnownFrontendDirectory(workdir)
+  ) {
+    return { decision: 'allow', category: 'repo-frontend-install' };
+  }
+
+  return null;
+}
+
+function classifyContextualAskOrDeny(
+  command: string,
+  workdir?: string,
+): ToolPolicyEvaluation | null {
+  if (
+    TAR_EXTRACT_PATTERN.test(command) ||
+    UNZIP_EXTRACT_PATTERN.test(command)
+  ) {
+    const target = extractArchiveTarget(command);
+    if (target && isRepoScopedPath(target, workdir)) {
+      return {
+        decision: 'ask',
+        category: 'archive-extract-repo',
+        reason:
+          'Archive extraction into repo-scoped temp or fixture paths should be reviewed.',
+      };
+    }
+
+    return {
+      decision: 'deny',
+      category: 'archive-extract',
+      reason:
+        'Archive extraction outside repo-scoped temp or fixture paths is unsafe.',
+    };
+  }
+
+  if (WGET_REMOTE_PATTERN.test(command) && !LOCALHOST_PATTERN.test(command)) {
+    const target = extractWgetTarget(command);
+    if (target && isRepoScopedPath(target, workdir)) {
+      return {
+        decision: 'ask',
+        category: 'wget-repo-download',
+        reason:
+          'Remote wget into repo-scoped temp or fixture paths should be reviewed.',
+      };
+    }
+
+    return {
+      decision: 'deny',
+      category: 'wget-remote',
+      reason:
+        'Remote wget downloads arbitrary files outside reviewed repo-scoped targets.',
+    };
+  }
+
+  return null;
+}
+
+function classifyBashCommand(
+  command: string,
+  workdir?: string,
+): ToolPolicyEvaluation {
   if (SAFE_ENV_COMMAND_PATTERN.test(command)) {
     return { decision: 'allow', category: 'env-safe-command' };
+  }
+
+  const contextualAllow = classifyContextualAllow(command, workdir);
+  if (contextualAllow) {
+    return contextualAllow;
   }
 
   for (const [pattern, category, reason] of DENY_BASH_PATTERNS) {
     if (pattern.test(command)) {
       return { decision: 'deny', category, reason };
     }
+  }
+
+  const contextualAskOrDeny = classifyContextualAskOrDeny(command, workdir);
+  if (contextualAskOrDeny) {
+    return contextualAskOrDeny;
   }
 
   for (const [pattern, category] of ALLOW_BASH_PATTERNS) {
@@ -253,7 +436,7 @@ export function classifyToolExecution(
     return { decision: 'allow', category: 'safe-bash' };
   }
 
-  return classifyBashCommand(command);
+  return classifyBashCommand(command, extractWorkingDirectory(request.args));
 }
 
 export function classifyPermissionRequest(
@@ -278,5 +461,8 @@ export function classifyPermissionRequest(
     };
   }
 
-  return classifyBashCommand(command);
+  return classifyBashCommand(
+    command,
+    extractWorkingDirectory(request.metadata),
+  );
 }
