@@ -59,6 +59,22 @@ bun test -t "test-name-pattern"
 ### Git Integration
 - Biome integrates with git (VCS enabled)
 - Commits should pass `bun run check:ci` before pushing
+- Commit titles must use `type(scope): summary`
+- `fix(...)` and `feat(...)` commits require a structured body with these exact sections:
+  - `Problem: observable symptom or gap`
+  - `Solution: what changed and why`
+  - `Test: test name, count, or 'existing tests pass'`
+- When committing from the CLI, prefer a heredoc or `git commit -F-` so multiline commit bodies are parsed reliably by the local commit-message hook
+
+**Template:**
+
+```text
+feat(scope): short summary
+
+Problem: observable symptom or gap
+Solution: what changed and why
+Test: test name, count, or 'existing tests pass'
+```
 
 ## Project Structure
 
