@@ -77,7 +77,7 @@ The native policy now supports a narrow, one-shot override path for the exact pr
 
 1. a Bash command is blocked or classified as `ask`
 2. the plugin stores the exact command string for that session for a short TTL
-3. the user sends an explicit follow-up like `proceed`, `override`, `go ahead`, or similar
+3. the user sends an explicit follow-up like `proceed`, `override`, `go ahead`, `push again`, `try again`, or similar
 4. the **next exact same command** in that same session is allowed once
 5. the override is consumed immediately
 

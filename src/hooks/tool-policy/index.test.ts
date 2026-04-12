@@ -500,4 +500,72 @@ describe('createToolPolicyHook', () => {
       ),
     ).rejects.toThrow();
   });
+
+  test('allows exact blocked command after natural push again message', async () => {
+    const hook = createToolPolicyHook(makeCtx());
+
+    await hook['permission.ask'](
+      {
+        sessionID: 's1',
+        type: 'bash',
+        metadata: {
+          command: 'git push tao feature/category-routing',
+          tool: { callID: 'c1' },
+        },
+      },
+      { status: 'allow' as 'ask' | 'deny' | 'allow' },
+    );
+    await hook['experimental.chat.messages.transform'](
+      {},
+      {
+        messages: [
+          {
+            info: { role: 'user', sessionID: 's1', agent: 'orchestrator' },
+            parts: [{ type: 'text', text: 'push again' }],
+          },
+        ],
+      },
+    );
+
+    await expect(
+      hook['tool.execute.before'](
+        { tool: 'bash', callID: 'c2', sessionID: 's1' },
+        { args: { command: 'git push tao feature/category-routing' } },
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  test('allows exact blocked command after natural try again message', async () => {
+    const hook = createToolPolicyHook(makeCtx());
+
+    await hook['permission.ask'](
+      {
+        sessionID: 's1',
+        type: 'bash',
+        metadata: {
+          command: 'gh pr merge 123',
+          tool: { callID: 'c1' },
+        },
+      },
+      { status: 'allow' as 'ask' | 'deny' | 'allow' },
+    );
+    await hook['experimental.chat.messages.transform'](
+      {},
+      {
+        messages: [
+          {
+            info: { role: 'user', sessionID: 's1', agent: 'orchestrator' },
+            parts: [{ type: 'text', text: 'try again' }],
+          },
+        ],
+      },
+    );
+
+    await expect(
+      hook['tool.execute.before'](
+        { tool: 'bash', callID: 'c2', sessionID: 's1' },
+        { args: { command: 'gh pr merge 123' } },
+      ),
+    ).resolves.toBeUndefined();
+  });
 });

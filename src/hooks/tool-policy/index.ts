@@ -21,6 +21,8 @@ interface ApprovedOverride {
 const OVERRIDE_TTL_MS = 5 * 60 * 1000;
 const EXPLICIT_OVERRIDE_PATTERN =
   /\b(proceed|override|go ahead|run it|do it|push it|proceed anyway|override it)\b/i;
+const NATURAL_RETRY_PATTERN =
+  /\b(?:try|run|do|push|retry)(?:\s+it)?\s+again\b/i;
 
 function getCallId(input: ToolPermissionRequest): string | undefined {
   const metadata = input.metadata;
@@ -90,6 +92,12 @@ function buildOverrideEvaluation(
   };
 }
 
+function isExplicitOverrideIntent(text: string): boolean {
+  return (
+    EXPLICIT_OVERRIDE_PATTERN.test(text) || NATURAL_RETRY_PATTERN.test(text)
+  );
+}
+
 export function createToolPolicyHook(_ctx: PluginInput) {
   const evaluations = new Map<string, ToolPolicyEvaluation>();
   const approvedAsks = new Map<string, ToolPolicyEvaluation>();
@@ -127,7 +135,7 @@ export function createToolPolicyHook(_ctx: PluginInput) {
           )
           .map((part) => part.text ?? '')
           .join('\n');
-        if (!EXPLICIT_OVERRIDE_PATTERN.test(text)) {
+        if (!isExplicitOverrideIntent(text)) {
           return;
         }
 
