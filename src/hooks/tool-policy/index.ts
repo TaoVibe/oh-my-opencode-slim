@@ -7,6 +7,21 @@ interface ToolPolicyMetadata {
   [key: string]: unknown;
 }
 
+interface PendingBlockedCommand {
+  command: string;
+  evaluation: ToolPolicyEvaluation;
+  expiresAt: number;
+}
+
+interface ApprovedOverride {
+  command: string;
+  expiresAt: number;
+}
+
+const OVERRIDE_TTL_MS = 5 * 60 * 1000;
+const EXPLICIT_OVERRIDE_PATTERN =
+  /\b(proceed|override|go ahead|run it|do it|push it|proceed anyway|override it)\b/i;
+
 function getCallId(input: ToolPermissionRequest): string | undefined {
   const metadata = input.metadata;
   const tool =
@@ -25,17 +40,137 @@ function getCallId(input: ToolPermissionRequest): string | undefined {
   );
 }
 
+function getString(value: unknown): string | undefined {
+  return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+function getRecord(value: unknown): Record<string, unknown> | undefined {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function extractCommandFromContainer(
+  container?: Record<string, unknown>,
+): string | undefined {
+  if (!container) return undefined;
+
+  for (const key of ['command', 'cmd', 'title'] as const) {
+    const value = getString(container[key]);
+    if (value) return value;
+  }
+
+  for (const key of [
+    'args',
+    'input',
+    'toolInput',
+    'tool_input',
+    'toolArgs',
+    'tool_args',
+  ] as const) {
+    const nested = getRecord(container[key]);
+    const command = getString(nested?.command);
+    if (command) return command;
+  }
+
+  return undefined;
+}
+
+function isOverrideFresh(expiresAt: number): boolean {
+  return Date.now() <= expiresAt;
+}
+
+function buildOverrideEvaluation(
+  evaluation: ToolPolicyEvaluation,
+): ToolPolicyEvaluation {
+  return {
+    decision: 'allow',
+    category: `user-override:${evaluation.category}`,
+    reason: evaluation.reason,
+  };
+}
+
 export function createToolPolicyHook(_ctx: PluginInput) {
   const evaluations = new Map<string, ToolPolicyEvaluation>();
   const approvedAsks = new Map<string, ToolPolicyEvaluation>();
+  const pendingBlockedBySession = new Map<string, PendingBlockedCommand>();
+  const approvedOverrideBySession = new Map<string, ApprovedOverride>();
 
   return {
+    'experimental.chat.messages.transform': async (
+      _input: Record<string, never>,
+      output: {
+        messages: Array<{
+          info: { role: string; sessionID?: string; agent?: string };
+          parts: Array<{ type: string; text?: string }>;
+        }>;
+      },
+    ): Promise<void> => {
+      const { messages } = output;
+      for (let index = messages.length - 1; index >= 0; index -= 1) {
+        const message = messages[index];
+        if (message.info.role !== 'user') continue;
+        if (message.info.agent && message.info.agent !== 'orchestrator') return;
+
+        const sessionID = message.info.sessionID;
+        if (!sessionID) return;
+
+        const pending = pendingBlockedBySession.get(sessionID);
+        if (!pending || !isOverrideFresh(pending.expiresAt)) {
+          pendingBlockedBySession.delete(sessionID);
+          return;
+        }
+
+        const text = message.parts
+          .filter(
+            (part) => part.type === 'text' && typeof part.text === 'string',
+          )
+          .map((part) => part.text ?? '')
+          .join('\n');
+        if (!EXPLICIT_OVERRIDE_PATTERN.test(text)) {
+          return;
+        }
+
+        approvedOverrideBySession.set(sessionID, {
+          command: pending.command,
+          expiresAt: Date.now() + OVERRIDE_TTL_MS,
+        });
+        pendingBlockedBySession.delete(sessionID);
+        return;
+      }
+    },
+
     'permission.ask': async (
       input: ToolPermissionRequest,
       output: { status: 'ask' | 'deny' | 'allow' },
     ): Promise<void> => {
       const evaluation = classifyPermissionRequest(input);
       const callID = getCallId(input);
+      const command = extractCommandFromContainer(input.metadata);
+      const sessionID = input.sessionID;
+      if (sessionID && command) {
+        const override = approvedOverrideBySession.get(sessionID);
+        if (
+          override &&
+          isOverrideFresh(override.expiresAt) &&
+          override.command === command
+        ) {
+          approvedOverrideBySession.delete(sessionID);
+          if (callID) {
+            approvedAsks.set(callID, buildOverrideEvaluation(evaluation));
+          }
+          output.status = 'allow';
+          return;
+        }
+      }
+
+      if (sessionID && command && evaluation.decision !== 'allow') {
+        pendingBlockedBySession.set(sessionID, {
+          command,
+          evaluation,
+          expiresAt: Date.now() + OVERRIDE_TTL_MS,
+        });
+      }
       if (evaluation.decision === 'deny') {
         output.status = 'deny';
         return;
@@ -50,7 +185,7 @@ export function createToolPolicyHook(_ctx: PluginInput) {
     },
 
     'tool.execute.before': async (
-      input: { tool: string; callID: string },
+      input: { tool: string; callID: string; sessionID?: string },
       output: { args: Record<string, unknown> },
     ): Promise<void> => {
       const approvedAsk = approvedAsks.get(input.callID);
@@ -60,11 +195,36 @@ export function createToolPolicyHook(_ctx: PluginInput) {
         return;
       }
 
+      const command = getString(output.args.command);
+      if (input.sessionID && command) {
+        const override = approvedOverrideBySession.get(input.sessionID);
+        if (
+          override &&
+          isOverrideFresh(override.expiresAt) &&
+          override.command === command
+        ) {
+          approvedOverrideBySession.delete(input.sessionID);
+          const evaluation = classifyToolExecution({
+            tool: input.tool,
+            args: output.args,
+          });
+          evaluations.set(input.callID, buildOverrideEvaluation(evaluation));
+          return;
+        }
+      }
+
       const evaluation = classifyToolExecution({
         tool: input.tool,
         args: output.args,
       });
       evaluations.set(input.callID, evaluation);
+      if (input.sessionID && command && evaluation.decision !== 'allow') {
+        pendingBlockedBySession.set(input.sessionID, {
+          command,
+          evaluation,
+          expiresAt: Date.now() + OVERRIDE_TTL_MS,
+        });
+      }
       if (evaluation.decision === 'deny') {
         throw new Error(
           evaluation.reason ?? 'Native tool policy blocked the operation',

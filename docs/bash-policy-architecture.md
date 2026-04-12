@@ -69,6 +69,41 @@ If OpenCode does **not** emit a native permission request for an `ask`-class Bas
 
 This prevents `ask` from degrading into accidental `allow`.
 
+## Explicit user override flow
+
+The native policy now supports a narrow, one-shot override path for the exact previously blocked Bash command.
+
+### How it works
+
+1. a Bash command is blocked or classified as `ask`
+2. the plugin stores the exact command string for that session for a short TTL
+3. the user sends an explicit follow-up like `proceed`, `override`, `go ahead`, or similar
+4. the **next exact same command** in that same session is allowed once
+5. the override is consumed immediately
+
+### Guardrails
+
+- session-scoped only
+- exact-command match only
+- one-shot only
+- short-lived TTL
+- does **not** grant a wildcard permission to future commands
+- does **not** override a different command in the same session
+
+### Why this exists
+
+This allows a user to explicitly proceed after seeing a block warning without weakening the default policy into a broad allowlist.
+
+### What future sessions should preserve
+
+If you edit this flow, keep all of these properties:
+
+- exact command match
+- one-shot consumption
+- explicit user confirmation phrase
+- session scoping
+- tests for both "same command allowed" and "different command still blocked"
+
 ## Native ask mode
 
 If you want broad native OpenCode approval prompts for Bash, enable:

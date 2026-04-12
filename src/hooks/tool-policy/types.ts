@@ -7,6 +7,8 @@ export interface ToolPolicyEvaluation {
 }
 
 export interface ToolPermissionRequest {
+  sessionID?: string;
+  callID?: string;
   type?: string;
   title?: string;
   metadata?: Record<string, unknown>;

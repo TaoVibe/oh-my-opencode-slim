@@ -414,4 +414,90 @@ describe('createToolPolicyHook', () => {
 
     expect(output.status).toBe('ask');
   });
+
+  test('allows exact blocked command after explicit user override message', async () => {
+    const hook = createToolPolicyHook(makeCtx());
+    const permissionOutput = { status: 'allow' as 'ask' | 'deny' | 'allow' };
+
+    await hook['permission.ask'](
+      {
+        sessionID: 's1',
+        type: 'bash',
+        metadata: {
+          command: 'git push origin main',
+          tool: { callID: 'c1' },
+        },
+      },
+      permissionOutput,
+    );
+    await hook['experimental.chat.messages.transform'](
+      {},
+      {
+        messages: [
+          {
+            info: { role: 'user', sessionID: 's1', agent: 'orchestrator' },
+            parts: [{ type: 'text', text: 'proceed with it' }],
+          },
+        ],
+      },
+    );
+
+    const nextPermissionOutput = {
+      status: 'ask' as 'ask' | 'deny' | 'allow',
+    };
+    await hook['permission.ask'](
+      {
+        sessionID: 's1',
+        type: 'bash',
+        metadata: {
+          command: 'git push origin main',
+          tool: { callID: 'c2' },
+        },
+      },
+      nextPermissionOutput,
+    );
+
+    expect(nextPermissionOutput.status).toBe('allow');
+    await expect(
+      hook['tool.execute.before'](
+        { tool: 'bash', callID: 'c2', sessionID: 's1' },
+        { args: { command: 'git push origin main' } },
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  test('does not override a different command after proceed message', async () => {
+    const hook = createToolPolicyHook(makeCtx());
+    const permissionOutput = { status: 'allow' as 'ask' | 'deny' | 'allow' };
+
+    await hook['permission.ask'](
+      {
+        sessionID: 's1',
+        type: 'bash',
+        metadata: {
+          command: 'git push origin main',
+          tool: { callID: 'c1' },
+        },
+      },
+      permissionOutput,
+    );
+    await hook['experimental.chat.messages.transform'](
+      {},
+      {
+        messages: [
+          {
+            info: { role: 'user', sessionID: 's1', agent: 'orchestrator' },
+            parts: [{ type: 'text', text: 'override it' }],
+          },
+        ],
+      },
+    );
+
+    await expect(
+      hook['tool.execute.before'](
+        { tool: 'bash', callID: 'c2', sessionID: 's1' },
+        { args: { command: 'gh pr merge 123' } },
+      ),
+    ).rejects.toThrow();
+  });
 });

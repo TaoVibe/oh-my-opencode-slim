@@ -542,6 +542,8 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     'permission.ask': async (input, output) => {
       await toolPolicyHook['permission.ask']?.(
         input as {
+          sessionID?: string;
+          callID?: string;
           type?: string;
           title?: string;
           metadata?: Record<string, unknown>;
@@ -567,6 +569,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         input as {
           tool: string;
           callID: string;
+          sessionID?: string;
         },
         output as { args: Record<string, unknown> },
       );
@@ -679,6 +682,10 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         typedOutput,
       );
       await intentRouterHook['experimental.chat.messages.transform'](
+        input,
+        typedOutput,
+      );
+      await toolPolicyHook['experimental.chat.messages.transform']?.(
         input,
         typedOutput,
       );
