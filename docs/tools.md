@@ -8,6 +8,48 @@ Slim only intercepts `apply_patch` before the native tool runs. It rewrites reco
 
 ---
 
+## Claude hooks + native tool policy
+
+The fork supports Claude-style hooks and maps them onto OpenCode lifecycle hooks.
+
+Supported Claude hook events:
+
+- `UserPromptSubmit`
+- `PreToolUse`
+- `PostToolUse`
+- `SessionStart`
+- `SubagentStart`
+- `SubagentStop`
+
+Runtime model:
+
+- `tool.execute.before` handles native tool-policy enforcement
+- `permission.ask` is used when OpenCode emits a native permission request
+- Claude `PreToolUse` can still mutate inputs or deny calls
+- Claude `PostToolUse` can append additional context or warnings
+
+### Bash safety behavior
+
+The native tool policy classifies Bash calls into:
+
+- **allow** — safe commands continue normally
+- **deny** — command is blocked before execution
+- **ask** — command requires approval
+
+If no native OpenCode permission prompt is emitted for an ask-class command, the plugin blocks it with an explicit approval-needed error instead of letting it run silently.
+
+To opt into real native OpenCode permission prompts for all Bash calls, set:
+
+```jsonc
+{
+  "featureFlags": {
+    "nativeBashAskAll": true
+  }
+}
+```
+
+---
+
 ## Background Tasks
 
 Launch agents asynchronously and collect results later. This is how the Orchestrator runs Explorer, Librarian, and other sub-agents in parallel without blocking.

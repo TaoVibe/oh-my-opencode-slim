@@ -64,6 +64,41 @@ https://raw.githubusercontent.com/alvinunreal/oh-my-opencode-slim/refs/heads/mas
 
 **Local fork setup:** [LOCAL_SETUP.md](LOCAL_SETUP.md)
 
+### Claude hook compatibility + OpenCode permissions
+
+This fork now supports Claude-style hook config from:
+
+- `~/.claude/settings.json`
+- `.claude/settings.json`
+- `.claude/settings.local.json`
+
+Mapped behaviors include:
+
+- `UserPromptSubmit`
+- `PreToolUse`
+- `PostToolUse`
+- `SessionStart`
+- `SubagentStart`
+- `SubagentStop`
+
+It also adds a native OpenCode tool-policy layer for Bash/tool governance:
+
+- **deny-class** commands are blocked before execution
+- **ask-class** commands are blocked unless a native permission gate fired first
+- Claude `PreToolUse` decisions are mapped into `permission.ask` when OpenCode emits that hook
+
+If you want OpenCode to emit a real native permission prompt for all Bash calls, enable:
+
+```jsonc
+{
+  "featureFlags": {
+    "nativeBashAskAll": true
+  }
+}
+```
+
+Guide: [docs/tools.md](docs/tools.md) · [docs/configuration.md](docs/configuration.md)
+
 ### ✅ Verify Your Setup
 
 After installation and authentication, verify all agents are configured and responding:

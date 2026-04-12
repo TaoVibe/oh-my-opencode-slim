@@ -231,6 +231,7 @@ export type FailoverConfig = z.infer<typeof FailoverConfigSchema>;
 
 export const FeatureFlagsSchema = z.object({
   orchestratorFollowsSessionModel: z.boolean().default(false),
+  nativeBashAskAll: z.boolean().default(false),
 });
 
 export type FeatureFlags = z.infer<typeof FeatureFlagsSchema>;

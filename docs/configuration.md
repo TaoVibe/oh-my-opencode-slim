@@ -127,3 +127,51 @@ All config files support **JSONC** (JSON with Comments):
 | `todoContinuation.cooldownMs` | integer | `3000` | Delay in ms before auto-continuing — gives user time to abort (0–30000) |
 | `todoContinuation.autoEnable` | boolean | `false` | Automatically enable auto-continue when session has enough todos |
 | `todoContinuation.autoEnableThreshold` | integer | `4` | Number of todos that triggers auto-enable (only used when `autoEnable` is true, 1–50) |
+| `featureFlags.orchestratorFollowsSessionModel` | boolean | `false` | Let orchestrator follow the session-selected model instead of forcing its configured startup model |
+| `featureFlags.nativeBashAskAll` | boolean | `false` | Opt in to native OpenCode `bash: ask` permission config for all Bash calls |
+
+---
+
+## Claude Hooks + Native Permissions
+
+This fork supports Claude-style hook config from:
+
+- `~/.claude/settings.json`
+- `.claude/settings.json`
+- `.claude/settings.local.json`
+
+Supported Claude hook events:
+
+- `UserPromptSubmit`
+- `PreToolUse`
+- `PostToolUse`
+- `SessionStart`
+- `SubagentStart`
+- `SubagentStop`
+
+Behavior model:
+
+1. native OpenCode tool policy runs first
+2. `permission.ask` is used when OpenCode emits a permission request
+3. Claude `PreToolUse` / `PostToolUse` compatibility runs on top
+4. a final fallback block prevents ask-class commands from silently executing when no native permission gate fired
+
+### Native Bash ask mode
+
+If you want OpenCode to trigger a real native permission prompt for Bash calls, enable:
+
+```jsonc
+{
+  "featureFlags": {
+    "nativeBashAskAll": true
+  }
+}
+```
+
+This is intentionally broad:
+
+- it sets core OpenCode permission config to `bash: "ask"`
+- it is **opt-in**
+- the plugin's native safety policy still blocks known risky commands when needed
+
+Without this flag, ask-class Bash operations fall back to explicit pre-execution blocking instead of silently running.

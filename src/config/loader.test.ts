@@ -80,6 +80,23 @@ describe('loadPluginConfig', () => {
     expect(config.balanceProviderUsage).toBe(true);
   });
 
+  test('loads nativeBashAskAll feature flag when configured', () => {
+    const projectDir = path.join(tempDir, 'project');
+    const projectConfigDir = path.join(projectDir, '.opencode');
+    fs.mkdirSync(projectConfigDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(projectConfigDir, 'oh-my-opencode-slim.json'),
+      JSON.stringify({
+        featureFlags: {
+          nativeBashAskAll: true,
+        },
+      }),
+    );
+
+    const config = loadPluginConfig(projectDir);
+    expect(config.featureFlags?.nativeBashAskAll).toBe(true);
+  });
+
   test('loads manual plan structure when configured', () => {
     const projectDir = path.join(tempDir, 'project');
     const projectConfigDir = path.join(projectDir, '.opencode');

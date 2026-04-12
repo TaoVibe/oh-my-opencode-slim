@@ -3,11 +3,13 @@ import { createAgents, getAgentConfigs } from './agents';
 import { BackgroundTaskManager, MultiplexerSessionManager } from './background';
 import { loadPluginConfig, type MultiplexerConfig } from './config';
 import { parseList } from './config/agent-mcps';
+import { applyNativePermissionHints } from './config/native-permissions';
 import { CouncilManager } from './council';
 import {
   createApplyPatchHook,
   createAutoUpdateCheckerHook,
   createChatHeadersHook,
+  createClaudeCodeHooksHook,
   createDelegateTaskRetryHook,
   createFilterAvailableSkillsHook,
   createIntentRouterHook,
@@ -15,6 +17,7 @@ import {
   createPhaseReminderHook,
   createPostFileToolNudgeHook,
   createTodoContinuationHook,
+  createToolPolicyHook,
   ForegroundFallbackManager,
 } from './hooks';
 import { createInterviewManager } from './interview';
@@ -176,6 +179,11 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
   });
 
   const chatHeadersHook = createChatHeadersHook(ctx);
+  const claudeCodeHooksHook = createClaudeCodeHooksHook(
+    ctx,
+    config.disabled_hooks,
+  );
+  const toolPolicyHook = createToolPolicyHook(ctx);
 
   // Initialize delegate-task retry guidance hook
   const delegateTaskRetryHook = createDelegateTaskRetryHook(ctx);
@@ -404,8 +412,17 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
           string,
           unknown
         >;
+        const hintedAgentPermission = applyNativePermissionHints(
+          agentPermission as Record<
+            string,
+            'ask' | 'allow' | 'deny' | Record<string, 'ask' | 'allow' | 'deny'>
+          >,
+          config.featureFlags,
+        );
+        agentConfigEntry.permission = hintedAgentPermission;
 
         // Parse mcps list with wildcard and exclusion support
+        if (!agentMcps) continue;
         const allowedMcps = parseList(agentMcps, allMcpNames);
 
         // Create permission rules for each MCP
@@ -416,13 +433,13 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
           const action = allowedMcps.includes(mcpName) ? 'allow' : 'deny';
 
           // Only set if not already defined by user
-          if (!(permissionKey in agentPermission)) {
-            agentPermission[permissionKey] = action;
+          if (!(permissionKey in hintedAgentPermission)) {
+            hintedAgentPermission[permissionKey] = action;
           }
         }
 
         // Update agent config with permissions
-        agentConfigEntry.permission = agentPermission;
+        agentConfigEntry.permission = hintedAgentPermission;
       }
 
       // Register /auto-continue command so OpenCode recognizes it.
@@ -503,6 +520,12 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         },
       );
 
+      await claudeCodeHooksHook.event(
+        input as {
+          event: { type: string; properties?: Record<string, unknown> };
+        },
+      );
+
       await postFileToolNudgeHook.event(
         input as {
           event: {
@@ -516,8 +539,47 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       );
     },
 
+    'permission.ask': async (input, output) => {
+      await toolPolicyHook['permission.ask']?.(
+        input as {
+          type?: string;
+          title?: string;
+          metadata?: Record<string, unknown>;
+        },
+        output as { status: 'ask' | 'deny' | 'allow' },
+      );
+
+      await claudeCodeHooksHook['permission.ask']?.(
+        input as {
+          type?: string;
+          title?: string;
+          sessionID?: string;
+          callID?: string;
+          metadata?: Record<string, unknown>;
+        },
+        output as { status: 'ask' | 'deny' | 'allow' },
+      );
+    },
+
     // Best-effort rescue only for stale apply_patch input before native execution
     'tool.execute.before': async (input, output) => {
+      await toolPolicyHook['tool.execute.before'](
+        input as {
+          tool: string;
+          callID: string;
+        },
+        output as { args: Record<string, unknown> },
+      );
+
+      await claudeCodeHooksHook['tool.execute.before'](
+        input as {
+          tool: string;
+          sessionID: string;
+          callID: string;
+        },
+        output as { args: Record<string, unknown> },
+      );
+
       await applyPatchHook['tool.execute.before'](
         input as {
           tool: string;
@@ -620,6 +682,10 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         input,
         typedOutput,
       );
+      await claudeCodeHooksHook['experimental.chat.messages.transform'](
+        input,
+        typedOutput,
+      );
       await filterAvailableSkillsHook['experimental.chat.messages.transform'](
         input,
         typedOutput,
@@ -628,6 +694,19 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
     // Post-tool hooks: retry guidance for delegation errors + file-tool nudge
     'tool.execute.after': async (input, output) => {
+      await claudeCodeHooksHook['tool.execute.after'](
+        input as {
+          tool: string;
+          sessionID: string;
+          callID: string;
+        },
+        output as {
+          title: string;
+          output: unknown;
+          metadata: unknown;
+        },
+      );
+
       await delegateTaskRetryHook['tool.execute.after'](
         input as { tool: string },
         output as { output: unknown },
@@ -657,6 +736,13 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
           output: string;
           metadata: Record<string, unknown>;
         },
+      );
+
+      await toolPolicyHook['tool.execute.after'](
+        input as {
+          callID: string;
+        },
+        output as { metadata: unknown },
       );
     },
   };

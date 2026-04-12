@@ -25,9 +25,9 @@
 | [MCPs](mcps.md) | `websearch`, `context7`, `grep_app` — permissions per agent, global disable |
 | [Tools](tools.md) | Background tasks, LSP, code search (`ast_grep`), formatters |
 | [Intent Routing](intent-routing.md) | `deep research`, `deep review`, hidden harness tags, alias tuning |
+| [Configuration](configuration.md) | Config files, Claude hook compatibility, native Bash ask mode, full option reference |
 | [Observability Local Fork Plan](observability-local-fork-plan.md) | Plugin-side runtime status model, tools, toggles, rollout (do first) |
 | [Observability TUI Plan](observability-tui-plan.md) | Core TUI chips/panel, feature flags, cherry-pick strategy (do second) |
-| [Configuration](configuration.md) | Config files, prompt overriding, JSONC, full option reference table |
 
 ## 💡 Author's Setup
 

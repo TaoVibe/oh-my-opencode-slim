@@ -183,6 +183,8 @@ This phase is explicitly **demand-driven**, not default roadmap scope.
 - [x] 2026-04-12: Fixed visible internal marker leak in transcript UI
 - [x] 2026-04-12: Documented local-fork rebuild/restart/recovery workflow
 - [x] 2026-04-12: Documented stack-switching semantics for already-running vs newly launched sessions
+- [x] 2026-04-12: Ported Claude-compatible hook events into slim with native tool-policy enforcement
+- [x] 2026-04-12: Added opt-in native Bash ask mode plus fallback blocking and docs
 
 ## Rejected / Deferred
 
