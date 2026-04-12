@@ -1,11 +1,24 @@
 import { describe, expect, test } from 'bun:test';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { getConfigSearchDirs } from '../cli/paths';
 import type { PluginConfig } from '../config';
 import {
   AgentOverrideConfigSchema,
+  CUSTOM_AGENT_NAMES,
   DEFAULT_MODELS,
   SUBAGENT_NAMES,
 } from '../config';
 import { createAgents, getAgentConfigs, isSubagent } from './index';
+
+function countAvailableCustomAgents(): number {
+  return CUSTOM_AGENT_NAMES.filter((name) =>
+    getConfigSearchDirs().some((configDir) =>
+      fs.existsSync(path.join(configDir, 'agents', `${name}.md`)),
+    ),
+  ).length;
+}
 
 describe('agent alias backward compatibility', () => {
   test("applies 'explore' config to 'explorer' agent", () => {
@@ -301,9 +314,52 @@ describe('createAgents', () => {
     expect(names).toContain('fixer');
   });
 
-  test('creates exactly 9 agents (1 primary + 8 subagents)', () => {
+  test('creates built-ins plus any configured custom agents', () => {
     const agents = createAgents();
-    expect(agents.length).toBe(9);
+    expect(agents.length).toBe(9 + countAvailableCustomAgents());
+  });
+
+  test('loads configured custom agents from external markdown files', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'slim-agents-'));
+    const agentsDir = path.join(tempDir, 'agents');
+    fs.mkdirSync(agentsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(agentsDir, 'prometheus.md'),
+      `---
+description: Planning gate agent
+model: provider/frontmatter-model
+variant: medium
+---
+
+You are Prometheus.
+`,
+      'utf-8',
+    );
+
+    const originalConfigDir = process.env.OPENCODE_CONFIG_DIR;
+    process.env.OPENCODE_CONFIG_DIR = tempDir;
+
+    try {
+      const agents = createAgents({
+        agents: {
+          prometheus: { model: 'provider/override-model', variant: 'high' },
+        },
+      });
+
+      const prometheus = agents.find((agent) => agent.name === 'prometheus');
+      expect(prometheus).toBeDefined();
+      expect(prometheus?.description).toBe('Planning gate agent');
+      expect(prometheus?.config.model).toBe('provider/override-model');
+      expect(prometheus?.config.variant).toBe('high');
+      expect(prometheus?.config.prompt).toBe('You are Prometheus.');
+    } finally {
+      if (originalConfigDir === undefined) {
+        delete process.env.OPENCODE_CONFIG_DIR;
+      } else {
+        process.env.OPENCODE_CONFIG_DIR = originalConfigDir;
+      }
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -321,6 +377,50 @@ describe('getAgentConfigs', () => {
     const configs = getAgentConfigs();
     expect(configs.orchestrator.description).toBeDefined();
     expect(configs.explorer.description).toBeDefined();
+  });
+
+  test('marks configured custom agents as subagents', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'slim-custom-'));
+    const agentsDir = path.join(tempDir, 'agents');
+    fs.mkdirSync(agentsDir, { recursive: true });
+
+    for (const name of CUSTOM_AGENT_NAMES) {
+      fs.writeFileSync(
+        path.join(agentsDir, `${name}.md`),
+        `---
+description: ${name} agent
+model: provider/${name}
+---
+
+${name} prompt
+`,
+        'utf-8',
+      );
+    }
+
+    const originalConfigDir = process.env.OPENCODE_CONFIG_DIR;
+    process.env.OPENCODE_CONFIG_DIR = tempDir;
+
+    try {
+      const configs = getAgentConfigs({
+        agents: {
+          prometheus: { model: 'provider/prometheus' },
+          momus: { model: 'provider/momus' },
+          hephaestus: { model: 'provider/hephaestus' },
+        },
+      });
+
+      expect(configs.prometheus.mode).toBe('subagent');
+      expect(configs.momus.mode).toBe('subagent');
+      expect(configs.hephaestus.mode).toBe('subagent');
+    } finally {
+      if (originalConfigDir === undefined) {
+        delete process.env.OPENCODE_CONFIG_DIR;
+      } else {
+        process.env.OPENCODE_CONFIG_DIR = originalConfigDir;
+      }
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });
 

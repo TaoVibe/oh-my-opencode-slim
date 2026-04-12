@@ -36,6 +36,17 @@ export interface ResolutionError {
   message: string;
 }
 
+function normalizeOptionalString(
+  value: string | null | undefined,
+): string | undefined {
+  if (value === undefined || value === null) {
+    return undefined;
+  }
+
+  const normalized = String(value).trim();
+  return normalized.length > 0 ? normalized : undefined;
+}
+
 /**
  * Unified agent resolution from task arguments.
  *
@@ -52,11 +63,11 @@ export function resolveRequestedAgent(args: {
   subagent_type?: string | null;
 }): ResolvedAgent | ResolutionError {
   const validCategories = getValidCategoriesString();
+  const category = normalizeOptionalString(args.category)?.toLowerCase();
+  const subagentType = normalizeOptionalString(args.subagent_type);
 
   // Category takes precedence if provided
-  if (args.category !== undefined && args.category !== null) {
-    const category = String(args.category).toLowerCase().trim();
-
+  if (category) {
     if (!isValidCategory(category)) {
       return {
         error: true,
@@ -80,9 +91,9 @@ export function resolveRequestedAgent(args: {
   }
 
   // Direct subagent_type
-  if (args.subagent_type !== undefined && args.subagent_type !== null) {
+  if (subagentType) {
     return {
-      agent: String(args.subagent_type),
+      agent: subagentType,
       via: 'subagent_type',
     };
   }

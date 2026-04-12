@@ -26,6 +26,7 @@ import {
   createBackgroundTools,
   createCouncilTool,
   createDelegateTaskTool,
+  createObservabilityTool,
   createWebfetchTool,
   lsp_diagnostics,
   lsp_find_references,
@@ -142,6 +143,10 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     ctx,
     multiplexerConfig,
   );
+  const observabilityTools = createObservabilityTool(
+    backgroundManager,
+    multiplexerSessionManager,
+  );
 
   // Initialize auto-update checker hook
   const autoUpdateChecker = createAutoUpdateCheckerHook(ctx, {
@@ -204,6 +209,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     tool: {
       ...backgroundTools,
       ...delegateTaskTools,
+      ...observabilityTools,
       ...councilTools,
       webfetch,
       ...todoContinuationHook.tool,

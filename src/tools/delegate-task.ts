@@ -16,6 +16,16 @@ import type { MultiplexerConfig } from '../config/schema';
 
 const z = tool.schema;
 
+const optionalTrimmedString = () =>
+  z.preprocess((value) => {
+    if (typeof value !== 'string') {
+      return value;
+    }
+
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }, z.string().optional());
+
 export function createDelegateTaskTool(
   _ctx: PluginInput,
   manager: BackgroundTaskManager,
@@ -44,25 +54,18 @@ You can specify either:
         .string()
         .describe('Short description of the task (5-10 words)'),
       prompt: z.string().describe('The task prompt for the agent'),
-      subagent_type: z
-        .string()
-        .optional()
-        .describe(`Agent to use: ${agentNames}`),
-      category: z
-        .string()
-        .optional()
-        .describe(
-          `Task category (alternative to subagent_type): ${validCategories}`,
-        ),
+      subagent_type: optionalTrimmedString().describe(
+        `Agent to use: ${agentNames}`,
+      ),
+      category: optionalTrimmedString().describe(
+        `Task category (alternative to subagent_type): ${validCategories}`,
+      ),
       run_in_background: z
         .boolean()
         .optional()
         .default(true)
         .describe('Run as background task (default: true)'),
-      session_id: z
-        .string()
-        .optional()
-        .describe('Existing session to continue'),
+      session_id: optionalTrimmedString().describe('Existing session to continue'),
       load_skills: z
         .array(z.string())
         .optional()

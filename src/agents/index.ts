@@ -1,7 +1,11 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import type { AgentConfig as SDKAgentConfig } from '@opencode-ai/sdk/v2';
+import { getConfigSearchDirs } from '../cli/paths';
 import { getSkillPermissionsForAgent } from '../cli/skills';
 import {
   type AgentOverrideConfig,
+  CUSTOM_AGENT_NAMES,
   DEFAULT_MODELS,
   getAgentOverride,
   loadAgentPrompt,
@@ -27,6 +31,97 @@ type AgentFactory = (
   customPrompt?: string,
   customAppendPrompt?: string,
 ) => AgentDefinition;
+
+type CustomAgentName = (typeof CUSTOM_AGENT_NAMES)[number];
+
+type CustomAgentFile = {
+  description?: string;
+  model?: string;
+  variant?: string;
+  prompt?: string;
+};
+
+function stripFrontmatter(markdown: string): string {
+  return markdown.replace(/^---\n[\s\S]*?\n---\n?/, '').trim();
+}
+
+function extractFrontmatterValue(
+  frontmatter: string,
+  key: string,
+): string | undefined {
+  const match = frontmatter.match(new RegExp(`^${key}:\\s*(.+)$`, 'm'));
+  return match?.[1]?.trim();
+}
+
+function loadCustomAgentFile(name: CustomAgentName): CustomAgentFile {
+  for (const configDir of getConfigSearchDirs()) {
+    const filePath = path.join(configDir, 'agents', `${name}.md`);
+    if (!fs.existsSync(filePath)) {
+      continue;
+    }
+
+    try {
+      const markdown = fs.readFileSync(filePath, 'utf-8');
+      const frontmatterMatch = markdown.match(/^---\n([\s\S]*?)\n---\n?/);
+      const frontmatter = frontmatterMatch?.[1] ?? '';
+      return {
+        description: extractFrontmatterValue(frontmatter, 'description'),
+        model: extractFrontmatterValue(frontmatter, 'model'),
+        variant: extractFrontmatterValue(frontmatter, 'variant'),
+        prompt: stripFrontmatter(markdown),
+      };
+    } catch {
+      return {};
+    }
+  }
+
+  return {};
+}
+
+function createCustomAgent(
+  name: CustomAgentName,
+  config?: PluginConfig,
+): AgentDefinition | null {
+  const override = getAgentOverride(config, name);
+  const file = loadCustomAgentFile(name);
+  const modelOverride = override?.model;
+  const resolvedModel = Array.isArray(modelOverride)
+    ? undefined
+    : (modelOverride ?? file.model ?? DEFAULT_MODELS[name]);
+
+  if (!resolvedModel && !Array.isArray(modelOverride)) {
+    return null;
+  }
+
+  const agent: AgentDefinition = {
+    name,
+    description: file.description ?? `${name} custom agent`,
+    config: {
+      prompt: file.prompt,
+      temperature: 0.1,
+      model: resolvedModel,
+    },
+  };
+
+  if (file.variant) {
+    agent.config.variant = file.variant;
+  }
+
+  if (name === 'prometheus' || name === 'momus') {
+    agent.config.permission = {
+      edit: 'deny',
+      write: 'deny',
+      question: 'allow',
+    } as SDKAgentConfig['permission'];
+  }
+
+  if (override) {
+    applyOverrides(agent, override);
+  }
+
+  applyDefaultPermissions(agent, override?.skills);
+  return agent;
+}
 
 // Agent Configuration Helpers
 
@@ -178,6 +273,10 @@ export function createAgents(config?: PluginConfig): AgentDefinition[] {
     return agent;
   });
 
+  const customAgents = CUSTOM_AGENT_NAMES.map((name) =>
+    createCustomAgent(name, config),
+  ).filter((agent): agent is AgentDefinition => agent !== null);
+
   // 3. Create Orchestrator (with its own overrides and custom prompts)
   // DEFAULT_MODELS.orchestrator is undefined; model is resolved via override or
   // left unset so the runtime chat.message hook can pick it from _modelArray.
@@ -195,7 +294,7 @@ export function createAgents(config?: PluginConfig): AgentDefinition[] {
     applyOverrides(orchestrator, orchestratorOverride);
   }
 
-  return [orchestrator, ...allSubAgents];
+  return [orchestrator, ...allSubAgents, ...customAgents];
 }
 
 /**
@@ -226,7 +325,10 @@ export function getAgentConfigs(
         // Internal agents — subagent mode, hidden from @ autocomplete
         sdkConfig.mode = 'subagent';
         sdkConfig.hidden = true;
-      } else if (isSubagent(a.name)) {
+      } else if (
+        isSubagent(a.name) ||
+        (CUSTOM_AGENT_NAMES as readonly string[]).includes(a.name)
+      ) {
         sdkConfig.mode = 'subagent';
       } else if (a.name === 'orchestrator') {
         sdkConfig.mode = 'primary';

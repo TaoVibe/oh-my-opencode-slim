@@ -40,6 +40,24 @@ describe('resolveRequestedAgent', () => {
     expect(result.via).toBe('subagent_type');
   });
 
+  it('treats empty category as unset and uses subagent_type', () => {
+    const result = resolveRequestedAgent({
+      category: '   ',
+      subagent_type: 'explorer',
+    });
+    expect(result.agent).toBe('explorer');
+    expect(result.via).toBe('subagent_type');
+  });
+
+  it('treats empty strings as missing values', () => {
+    const result = resolveRequestedAgent({
+      category: '',
+      subagent_type: '   ',
+    });
+    expect(result.error).toBe(true);
+    expect(result.message).toContain('Must provide either');
+  });
+
   it('category takes precedence over subagent_type', () => {
     // When both are provided, category wins
     const result = resolveRequestedAgent({

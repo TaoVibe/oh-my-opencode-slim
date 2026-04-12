@@ -16,6 +16,7 @@
 import type { PluginInput } from '@opencode-ai/plugin';
 import type { BackgroundTaskConfig, PluginConfig } from '../config';
 import {
+  DEFAULT_MODELS,
   FALLBACK_FAILOVER_TIMEOUT_MS,
   SUBAGENT_DELEGATION_RULES,
 } from '../config';
@@ -23,7 +24,6 @@ import type { MultiplexerConfig } from '../config/schema';
 import { getMultiplexer } from '../multiplexer';
 import {
   applyAgentVariant,
-  createInternalAgentTextPart,
   resolveAgentVariant,
 } from '../utils';
 import { log } from '../utils/logger';
@@ -71,6 +71,20 @@ export interface LaunchOptions {
   description: string; // Human-readable task description
   parentSessionId: string; // Parent session ID for task hierarchy
 }
+
+export interface BackgroundTaskSnapshot {
+  id: string;
+  sessionId?: string;
+  description: string;
+  agent: string;
+  status: BackgroundTask['status'];
+  parentSessionId: string;
+  startedAt: string;
+  configuredModel?: string;
+  variant?: string;
+  fallbackChain: string[];
+}
+
 
 function generateTaskId(): string {
   return `bg_${Math.random().toString(36).substring(2, 10)}`;
@@ -251,6 +265,30 @@ export class BackgroundTaskManager {
     }
 
     return chain;
+  }
+
+  private resolveConfiguredModel(agentName: string): string | undefined {
+    const model = this.config?.agents?.[agentName]?.model;
+
+    if (Array.isArray(model)) {
+      const first = model[0];
+      return typeof first === 'string' ? first : first?.id;
+    }
+
+    if (typeof model === 'string') {
+      return model;
+    }
+
+    return DEFAULT_MODELS[agentName as keyof typeof DEFAULT_MODELS];
+  }
+
+  private resolveConfiguredVariant(agentName: string): string | undefined {
+    const configuredVariant = this.config?.agents?.[agentName]?.variant;
+    if (typeof configuredVariant === 'string' && configuredVariant.trim()) {
+      return configuredVariant.trim();
+    }
+
+    return undefined;
   }
 
   /**
@@ -592,13 +630,6 @@ export class BackgroundTaskManager {
         .catch(() => {});
     }
 
-    // Send notification to parent session
-    if (task.parentSessionId) {
-      this.sendCompletionNotification(task).catch((err) => {
-        log(`[background-manager] notification failed: ${err}`);
-      });
-    }
-
     // Resolve waiting callers
     const resolver = this.completionResolvers.get(task.id);
     if (resolver) {
@@ -612,25 +643,6 @@ export class BackgroundTaskManager {
   }
 
   /**
-   * Send completion notification to parent session.
-   */
-  private async sendCompletionNotification(
-    task: BackgroundTask,
-  ): Promise<void> {
-    const message =
-      task.status === 'completed'
-        ? `[Background task "${task.description}" completed]`
-        : `[Background task "${task.description}" failed: ${task.error}]`;
-
-    await this.client.session.prompt({
-      path: { id: task.parentSessionId },
-      body: {
-        parts: [createInternalAgentTextPart(message)],
-      },
-    });
-  }
-
-  /**
    * Retrieve the current state of a background task.
    *
    * @param taskId - The task ID to retrieve
@@ -638,6 +650,21 @@ export class BackgroundTaskManager {
    */
   getResult(taskId: string): BackgroundTask | null {
     return this.tasks.get(taskId) ?? null;
+  }
+
+  getTaskSnapshots(): BackgroundTaskSnapshot[] {
+    return Array.from(this.tasks.values()).map((task) => ({
+      id: task.id,
+      sessionId: task.sessionId,
+      description: task.description,
+      agent: task.agent,
+      status: task.status,
+      parentSessionId: task.parentSessionId,
+      startedAt: task.startedAt.toISOString(),
+      configuredModel: this.resolveConfiguredModel(task.agent),
+      variant: this.resolveConfiguredVariant(task.agent),
+      fallbackChain: this.resolveFallbackChain(task.agent),
+    }));
   }
 
   /**

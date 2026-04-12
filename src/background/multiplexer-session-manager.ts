@@ -20,6 +20,16 @@ interface TrackedSession {
   missingSince?: number;
 }
 
+export interface TrackedSessionSnapshot {
+  sessionId: string;
+  paneId: string;
+  parentId: string;
+  title: string;
+  createdAt: number;
+  lastSeenAt: number;
+  missingSince?: number;
+}
+
 /**
  * Event shape for session events
  */
@@ -291,6 +301,12 @@ export class MultiplexerSessionManager {
     }
 
     log('[multiplexer-session-manager] cleanup complete');
+  }
+
+  getTrackedSessions(): TrackedSessionSnapshot[] {
+    return Array.from(this.sessions.values()).map((session) => ({
+      ...session,
+    }));
   }
 }
 

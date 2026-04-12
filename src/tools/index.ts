@@ -11,4 +11,5 @@ export {
   lspManager,
   setUserLspConfig,
 } from './lsp';
+export { createObservabilityTool } from './observability';
 export { createWebfetchTool } from './smartfetch';

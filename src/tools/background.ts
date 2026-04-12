@@ -16,6 +16,16 @@ import type { MultiplexerConfig } from '../config/schema';
 
 const z = tool.schema;
 
+const optionalTrimmedString = () =>
+  z.preprocess((value) => {
+    if (typeof value !== 'string') {
+      return value;
+    }
+
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
+  }, z.string().optional());
+
 /**
  * Creates background task management tools for the plugin.
  * @param _ctx - Plugin input context
@@ -32,6 +42,16 @@ export function createBackgroundTools(
 ): Record<string, ToolDefinition> {
   const agentNames = ALL_AGENT_NAMES.join(', ');
   const validCategories = getValidCategoriesString();
+  const normalizeOptionalString = (
+    value: string | null | undefined,
+  ): string | undefined => {
+    if (value === undefined || value === null) {
+      return undefined;
+    }
+
+    const normalized = String(value).trim();
+    return normalized.length > 0 ? normalized : undefined;
+  };
 
   const background_task = tool({
     description: `Launch background agent task. Returns task_id immediately.
@@ -52,11 +72,10 @@ You can specify either:
         .string()
         .describe('Short description of the task (5-10 words)'),
       prompt: z.string().describe('The task prompt for the agent'),
-      agent: z.string().optional().describe(`Agent to use: ${agentNames}`),
-      category: z
-        .string()
-        .optional()
-        .describe(`Task category (alternative to agent): ${validCategories}`),
+      agent: optionalTrimmedString().describe(`Agent to use: ${agentNames}`),
+      category: optionalTrimmedString().describe(
+        `Task category (alternative to agent): ${validCategories}`,
+      ),
     },
     async execute(args, toolContext) {
       if (
@@ -71,17 +90,20 @@ You can specify either:
       const prompt = String(args.prompt);
       const description = String(args.description);
 
+      const categoryArg = normalizeOptionalString(args.category);
+      const agentArg = normalizeOptionalString(args.agent);
+
       // Resolve agent - either direct or via category
       let resolvedAgent: string;
 
-      if (args.category !== undefined && args.category !== null) {
-        if (args.agent !== undefined && args.agent !== null) {
-          const cat = String(args.category);
+      if (categoryArg) {
+        if (agentArg) {
+          const cat = categoryArg;
           const resolved = resolveCategory(cat);
           return `Provide either category OR agent, not both. Category "${cat}" resolves to "${resolved}".`;
         }
 
-        const category = String(args.category);
+        const category = categoryArg;
         if (!isValidCategory(category)) {
           return `Invalid category "${category}". Valid categories: ${validCategories}`;
         }
@@ -90,8 +112,8 @@ You can specify either:
           return `Category "${category}" has no default agent`;
         }
         resolvedAgent = agent;
-      } else if (args.agent !== undefined && args.agent !== null) {
-        resolvedAgent = String(args.agent);
+      } else if (agentArg) {
+        resolvedAgent = agentArg;
       } else {
         return `Must provide either agent or category. Category routing: ${getCategoryRoutingHint()}`;
       }
@@ -113,7 +135,7 @@ You can specify either:
       return `Background task launched.
 
 Task ID: ${task.id}
-Agent: ${resolvedAgent}${args.category ? ` (via category: ${args.category})` : ''}
+Agent: ${resolvedAgent}${categoryArg ? ` (via category: ${categoryArg})` : ''}
 Status: ${task.status}
 
 Use \`background_output\` with task_id="${task.id}" to get results.`;

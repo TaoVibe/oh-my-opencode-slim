@@ -1,5 +1,4 @@
 import { describe, expect, mock, test } from 'bun:test';
-import { SLIM_INTERNAL_INITIATOR_MARKER } from '../utils';
 import { BackgroundTaskManager } from './background-manager';
 
 // Mock the plugin context
@@ -39,6 +38,9 @@ function createMockContext(overrides?: {
           return {};
         }),
         abort: mock(async () => ({})),
+      },
+      tui: {
+        showToast: mock(async () => ({})),
       },
     },
     directory: '/test/directory',
@@ -684,7 +686,7 @@ describe('BackgroundTaskManager', () => {
       expect(task2.status).toBe('cancelled');
     });
 
-    test('always sends notification to parent session on completion', async () => {
+    test('does not send user-facing completion notification', async () => {
       const ctx = createMockContext({
         sessionMessagesResult: {
           data: [
@@ -716,18 +718,8 @@ describe('BackgroundTaskManager', () => {
         },
       });
 
-      // Should have called prompt.append for notification
-      expect(ctx.client.session.prompt).toHaveBeenCalled();
-
-      const promptCalls = ctx.client.session.prompt.mock.calls as Array<
-        [{ body?: { parts?: Array<{ text?: string }> } }]
-      >;
-      const notificationCall = promptCalls[promptCalls.length - 1];
-      expect(
-        notificationCall[0].body?.parts?.[0]?.text?.includes(
-          SLIM_INTERNAL_INITIATOR_MARKER,
-        ),
-      ).toBe(true);
+      expect(ctx.client.tui.showToast).not.toHaveBeenCalled();
+      expect(ctx.client.session.prompt).toHaveBeenCalledTimes(1);
     });
 
     test('retries next fallback model when first model returns empty response', async () => {
