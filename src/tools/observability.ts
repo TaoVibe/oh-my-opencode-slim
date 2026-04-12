@@ -3,6 +3,7 @@ import type {
   BackgroundTaskManager,
   MultiplexerSessionManager,
 } from '../background';
+import type { PluginConfig } from '../config';
 
 const z = tool.schema;
 
@@ -13,6 +14,7 @@ function formatList(items: string[]): string {
 export function createObservabilityTool(
   backgroundManager: BackgroundTaskManager,
   multiplexerSessionManager: MultiplexerSessionManager,
+  pluginConfig?: PluginConfig,
 ): Record<string, ToolDefinition> {
   const observability_status = tool({
     description: `Show current runtime status for background agents and panes.
@@ -60,6 +62,9 @@ Returns:
 
       const lines = [
         'Runtime Status',
+        `Stack: ${pluginConfig?.stackMode ?? 'default'}`,
+        `Model policy: ${pluginConfig?.modelPolicy?.enforceAllowlist === true ? 'allowlist-enforced' : 'disabled'}`,
+        `Allowed models: ${(pluginConfig?.modelPolicy?.allowedModels ?? []).length}`,
         `Tasks: pending=${counts.pending}, starting=${counts.starting}, running=${counts.running}, completed=${counts.completed}, failed=${counts.failed}, cancelled=${counts.cancelled}`,
         `Panes: ${panes.length}`,
         '',

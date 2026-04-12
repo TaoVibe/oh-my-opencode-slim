@@ -2,6 +2,7 @@ import type { Plugin } from '@opencode-ai/plugin';
 import { createAgents, getAgentConfigs } from './agents';
 import { BackgroundTaskManager, MultiplexerSessionManager } from './background';
 import { loadPluginConfig, type MultiplexerConfig } from './config';
+import { getAllowedModels, isStrictFreeStack } from './config/model-policy';
 import { parseList } from './config/agent-mcps';
 import { applyNativePermissionHints } from './config/native-permissions';
 import { CouncilManager } from './council';
@@ -81,6 +82,14 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       runtimeChains[agentName] = existing;
     }
   }
+  const allowedModels = isStrictFreeStack(config)
+    ? getAllowedModels(config)
+    : undefined;
+  if (allowedModels) {
+    for (const [agentName, chain] of Object.entries(runtimeChains)) {
+      runtimeChains[agentName] = chain.filter((model) => allowedModels.has(model));
+    }
+  }
 
   // Parse multiplexer config with defaults
   const multiplexerConfig: MultiplexerConfig = {
@@ -149,6 +158,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
   const observabilityTools = createObservabilityTool(
     backgroundManager,
     multiplexerSessionManager,
+    config,
   );
 
   // Initialize auto-update checker hook
@@ -198,6 +208,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     ctx.client,
     runtimeChains,
     config.fallback?.enabled !== false && Object.keys(runtimeChains).length > 0,
+    allowedModels,
   );
 
   // Initialize todo-continuation hook (opt-in auto-continue for incomplete todos)
@@ -254,7 +265,8 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
             ?.orchestrator as Record<string, unknown> | undefined
         )?.model === 'string';
       const orchestratorFollowsSessionModel =
-        config.featureFlags?.orchestratorFollowsSessionModel === true;
+        config.featureFlags?.orchestratorFollowsSessionModel === true &&
+        !isStrictFreeStack(config);
 
       // Merge Agent configs — per-agent shallow merge to preserve
       // user-supplied fields (e.g. tools, permission) from opencode.json
@@ -279,6 +291,17 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         }
       }
       const configAgent = opencodeConfig.agent as Record<string, unknown>;
+
+      if (allowedModels) {
+        for (const [agentName, entry] of Object.entries(configAgent)) {
+          const model = (entry as { model?: unknown } | undefined)?.model;
+          if (typeof model === 'string' && !allowedModels.has(model)) {
+            throw new Error(
+              `Model policy blocked ${model} for agent ${agentName}`,
+            );
+          }
+        }
+      }
 
       // Option B (feature-flagged): let the orchestrator follow the
       // session's current TUI model selection (/models) instead of forcing the
@@ -366,6 +389,11 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
             | Record<string, unknown>
             | undefined;
           if (entry) {
+            if (allowedModels && !allowedModels.has(chosen.id)) {
+              throw new Error(
+                `Model policy blocked ${chosen.id} for agent ${agentName}`,
+              );
+            }
             entry.model = chosen.id;
             if (chosen.variant) {
               entry.variant = chosen.variant;

@@ -1849,6 +1849,54 @@ describe('BackgroundTaskManager', () => {
 
       expect(manager.getSessionAgentModelOverrides('parent-123')).toEqual({});
     });
+
+    test('rejects disallowed session overrides in strict free stack', () => {
+      const ctx = createMockContext();
+      const manager = new BackgroundTaskManager(ctx, undefined, {
+        stackMode: 'free',
+        modelPolicy: {
+          enforceAllowlist: true,
+          allowedModels: ['opencode/big-pickle', 'opencode/minimax-m2.7-free'],
+          failClosed: true,
+        },
+      } as any);
+
+      expect(() =>
+        manager.setSessionAgentModelOverride(
+          'parent-123',
+          'explorer',
+          'openai/gpt-5.4-mini',
+        ),
+      ).toThrow('Model policy blocked openai/gpt-5.4-mini for session override for explorer');
+    });
+
+    test('filters disallowed configured and fallback models in strict free stack', () => {
+      const ctx = createMockContext();
+      const manager = new BackgroundTaskManager(ctx, undefined, {
+        stackMode: 'free',
+        agents: {
+          explorer: { model: 'openai/gpt-5.4-mini', variant: 'medium' },
+        },
+        fallback: {
+          enabled: true,
+          timeoutMs: 30000,
+          retryDelayMs: 500,
+          chains: {
+            explorer: ['openai/gpt-5.4-mini', 'opencode/minimax-m2.7-free'],
+          },
+        },
+        modelPolicy: {
+          enforceAllowlist: true,
+          allowedModels: ['opencode/big-pickle', 'opencode/minimax-m2.7-free'],
+          failClosed: true,
+        },
+      } as any);
+
+      expect(manager.resolveConfiguredModel('explorer')).toBeUndefined();
+      expect(manager.resolveFallbackChain('explorer')).toEqual([
+        'opencode/minimax-m2.7-free',
+      ]);
+    });
   });
 
 });

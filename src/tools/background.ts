@@ -5,7 +5,7 @@ import {
 } from '@opencode-ai/plugin';
 import type { BackgroundTaskManager } from '../background';
 import type { PluginConfig } from '../config';
-import { ALL_AGENT_NAMES } from '../config';
+import { ALL_AGENT_NAMES, isModelAllowed } from '../config';
 import {
   getCategoryRoutingHint,
   getValidCategoriesString,
@@ -42,7 +42,7 @@ export function createBackgroundTools(
   _ctx: PluginInput,
   manager: BackgroundTaskManager,
   _multiplexerConfig?: MultiplexerConfig,
-  _pluginConfig?: PluginConfig,
+  pluginConfig?: PluginConfig,
 ): Record<string, ToolDefinition> {
   const agentNames = ALL_AGENT_NAMES.join(', ');
   const overridableAgents = ALL_AGENT_NAMES.filter(
@@ -201,6 +201,9 @@ Call with no mutation args to inspect current session overrides.`,
         }
         if (!model.includes('/') || /\s/.test(model)) {
           return 'Model must use provider/model format.';
+        }
+        if (!isModelAllowed(model, pluginConfig)) {
+          return `Model policy blocked ${model} for session override.`;
         }
         manager.setSessionAgentModelOverride(sessionId, agent, model);
         const fallback = manager.resolveFallbackChain(agent, sessionId)

@@ -182,6 +182,8 @@ describe('orchestrator session model behavior', () => {
     currentModel?: string;
     chainModels?: string[];
     userExplicitModel?: boolean;
+    orchestratorFollowsSessionModel?: boolean;
+    strictFreeStack?: boolean;
   }): string | null {
     const {
       agentName,
@@ -189,11 +191,13 @@ describe('orchestrator session model behavior', () => {
       chainModels,
       userExplicitModel = false,
       orchestratorFollowsSessionModel = false,
+      strictFreeStack = false,
     } = opts;
 
     if (
       agentName === 'orchestrator' &&
       orchestratorFollowsSessionModel &&
+      !strictFreeStack &&
       !userExplicitModel
     ) {
       return null;
@@ -256,5 +260,17 @@ describe('orchestrator session model behavior', () => {
     });
 
     expect(result).toBe('opencode-go/minimax-m2.5');
+  });
+
+  test('strict free stack disables orchestrator session model following', () => {
+    const result = resolveStartupModel({
+      agentName: 'orchestrator',
+      currentModel: 'opencode/big-pickle',
+      chainModels: ['opencode/minimax-m2.7-free'],
+      orchestratorFollowsSessionModel: true,
+      strictFreeStack: true,
+    });
+
+    expect(result).toBe('opencode/big-pickle');
   });
 });

@@ -19,6 +19,17 @@ import { log } from '../../utils/logger';
 
 type OpencodeClient = PluginInput['client'];
 
+function filterAllowed(
+  models: string[],
+  allowedModels?: ReadonlySet<string>,
+): string[] {
+  if (!allowedModels) {
+    return models;
+  }
+
+  return models.filter((model) => allowedModels.has(model));
+}
+
 // ---------------------------------------------------------------------------
 // Rate-limit detection
 // ---------------------------------------------------------------------------
@@ -98,6 +109,7 @@ export class ForegroundFallbackManager {
      */
     private readonly chains: Record<string, string[]>,
     private readonly enabled: boolean,
+    private readonly allowedModels?: ReadonlySet<string>,
   ) {}
 
   /**
@@ -343,13 +355,15 @@ export class ForegroundFallbackManager {
     if (agentName) {
       // Agent is known: use its chain exactly, or no chain at all.
       // Never fall through to cross-agent chains when the agent is identified.
-      return this.chains[agentName] ?? [];
+      return filterAllowed(this.chains[agentName] ?? [], this.allowedModels);
     }
 
     // Agent unknown: try to infer from the current model.
     if (currentModel) {
       for (const chain of Object.values(this.chains)) {
-        if (chain.includes(currentModel)) return chain;
+        if (chain.includes(currentModel)) {
+          return filterAllowed(chain, this.allowedModels);
+        }
       }
     }
 
@@ -365,6 +379,6 @@ export class ForegroundFallbackManager {
         }
       }
     }
-    return all;
+    return filterAllowed(all, this.allowedModels);
   }
 }

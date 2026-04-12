@@ -236,9 +236,44 @@ export const FeatureFlagsSchema = z.object({
 
 export type FeatureFlags = z.infer<typeof FeatureFlagsSchema>;
 
+export const StackModeSchema = z.enum(['paid', 'free']);
+export type StackMode = z.infer<typeof StackModeSchema>;
+
+export const ModelPolicySchema = z
+  .object({
+    enforceAllowlist: z.boolean().default(false),
+    allowedModels: z.array(ProviderModelIdSchema).default([]),
+    failClosed: z.boolean().default(true),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.enforceAllowlist) {
+      return;
+    }
+
+    if (value.allowedModels.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['allowedModels'],
+        message:
+          'allowedModels must be non-empty when enforceAllowlist is true',
+      });
+    }
+
+    if (new Set(value.allowedModels).size !== value.allowedModels.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['allowedModels'],
+        message: 'allowedModels must be unique',
+      });
+    }
+  });
+
+export type ModelPolicy = z.infer<typeof ModelPolicySchema>;
+
 // Main plugin config
 export const PluginConfigSchema = z.object({
   preset: z.string().optional(),
+  stackMode: StackModeSchema.optional(),
   setDefaultAgent: z.boolean().optional(),
   disabled_hooks: z.array(z.string()).optional(),
   scoringEngineVersion: z.enum(['v1', 'v2-shadow', 'v2']).optional(),
@@ -259,6 +294,7 @@ export const PluginConfigSchema = z.object({
   fallback: FailoverConfigSchema.optional(),
   council: CouncilConfigSchema.optional(),
   featureFlags: FeatureFlagsSchema.optional(),
+  modelPolicy: ModelPolicySchema.optional(),
 });
 
 export type PluginConfig = z.infer<typeof PluginConfigSchema>;

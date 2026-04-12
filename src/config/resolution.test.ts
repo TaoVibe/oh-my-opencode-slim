@@ -58,14 +58,16 @@ describe('resolveRequestedAgent', () => {
     expect(result.message).toContain('Must provide either');
   });
 
-  it('category takes precedence over subagent_type', () => {
-    // When both are provided, category wins
+  it('returns error when category and subagent_type are both provided', () => {
     const result = resolveRequestedAgent({
       category: 'planning',
       subagent_type: 'explorer',
     });
-    expect(result.agent).toBe('prometheus');
-    expect(result.via).toBe('category');
+    expect(result.error).toBe(true);
+    expect(result.message).toContain(
+      'Provide either subagent_type OR category, not both',
+    );
+    expect(result.message).toContain('Category "planning" resolves to "prometheus"');
   });
 
   it('returns error for invalid category', () => {

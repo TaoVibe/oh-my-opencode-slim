@@ -16,9 +16,12 @@
 import type { PluginInput } from '@opencode-ai/plugin';
 import type { BackgroundTaskConfig, PluginConfig } from '../config';
 import {
+  assertModelAllowed,
   DEFAULT_MODELS,
   FALLBACK_FAILOVER_TIMEOUT_MS,
+  filterAllowedModels,
   SUBAGENT_DELEGATION_RULES,
+  shouldFailClosed,
 } from '../config';
 import type { MultiplexerConfig } from '../config/schema';
 import { getMultiplexer } from '../multiplexer';
@@ -256,6 +259,7 @@ export class BackgroundTaskManager {
     agentName: string,
     model: string,
   ): void {
+    assertModelAllowed(model, this.config, `session override for ${agentName}`);
     const sessionOverrides =
       this.sessionAgentModelOverrides.get(sessionId) ?? new Map<string, string>();
     sessionOverrides.set(agentName, model);
@@ -323,7 +327,7 @@ export class BackgroundTaskManager {
       chain.push(model);
     }
 
-    return chain;
+    return filterAllowedModels(chain, this.config);
   }
 
   resolveConfiguredModel(
@@ -332,20 +336,30 @@ export class BackgroundTaskManager {
   ): string | undefined {
     const sessionOverride = this.getSessionAgentModelOverride(sessionId, agentName);
     if (sessionOverride) {
-      return sessionOverride;
+      return filterAllowedModels([sessionOverride], this.config)[0];
     }
     const model = this.config?.agents?.[agentName]?.model;
 
     if (Array.isArray(model)) {
       const first = model[0];
-      return typeof first === 'string' ? first : first?.id;
+      return filterAllowedModels(
+        [typeof first === 'string' ? first : first?.id].filter(
+          (value): value is string => Boolean(value),
+        ),
+        this.config,
+      )[0];
     }
 
     if (typeof model === 'string') {
-      return model;
+      return filterAllowedModels([model], this.config)[0];
     }
 
-    return DEFAULT_MODELS[agentName as keyof typeof DEFAULT_MODELS];
+    return filterAllowedModels(
+      [DEFAULT_MODELS[agentName as keyof typeof DEFAULT_MODELS]].filter(
+        (value): value is string => Boolean(value),
+      ),
+      this.config,
+    )[0];
   }
 
   resolveConfiguredVariant(
@@ -449,6 +463,10 @@ export class BackgroundTaskManager {
       // Send prompt
       const promptQuery: Record<string, string> = { directory: this.directory };
       const resolvedVariant = resolveAgentVariant(this.config, task.agent);
+      const configuredModel = this.resolveConfiguredModel(
+        task.agent,
+        task.parentSessionId,
+      );
       const basePromptBody = applyAgentVariant(resolvedVariant, {
         agent: task.agent,
         tools: toolPermissions,
@@ -470,6 +488,12 @@ export class BackgroundTaskManager {
       const sessionId = session.data.id;
 
       const retryOnEmpty = this.config?.fallback?.retry_on_empty ?? true;
+
+      if (shouldFailClosed(this.config) && !configuredModel) {
+        throw new Error(
+          `No allowed model configured for ${task.agent} in current stack policy`,
+        );
+      }
 
       for (let i = 0; i < attemptModels.length; i++) {
         const model = attemptModels[i];

@@ -55,10 +55,11 @@ function normalizeOptionalString(
 /**
  * Unified agent resolution from task arguments.
  *
- * Resolution priority:
- * 1. If category provided → resolve to agent (category wins)
- * 2. Else if subagent_type provided → use directly
- * 3. Else → error
+ * Resolution rules:
+ * 1. category and subagent_type are mutually exclusive
+ * 2. If category provided → resolve to agent
+ * 3. Else if subagent_type provided → use directly
+ * 4. Else → error
  *
  * @param args - Task arguments with optional category/subagent_type
  * @returns Resolved agent or error
@@ -71,7 +72,15 @@ export function resolveRequestedAgent(args: {
   const category = normalizeOptionalString(args.category)?.toLowerCase();
   const subagentType = normalizeOptionalString(args.subagent_type);
 
-  // Category takes precedence if provided
+  if (category && subagentType) {
+    const resolved = resolveCategory(category);
+    const target = resolved ? ` Category "${category}" resolves to "${resolved}".` : '';
+    return {
+      error: true,
+      message: `Provide either subagent_type OR category, not both.${target}`,
+    };
+  }
+
   if (category) {
     if (!isValidCategory(category)) {
       return {

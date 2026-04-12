@@ -226,6 +226,33 @@ describe('CouncilManager', () => {
       expect(failedCount).toBe(1);
     });
 
+    test('blocks disallowed council models in strict free stack', async () => {
+      const ctx = createMockContext();
+      const config = createTestCouncilConfig({
+        master: { model: 'opencode/big-pickle' },
+        presets: {
+          default: {
+            alpha: { model: 'openai/gpt-5.4-mini' },
+          },
+        },
+      });
+
+      config.stackMode = 'free';
+      config.modelPolicy = {
+        enforceAllowlist: true,
+        allowedModels: ['opencode/big-pickle', 'opencode/minimax-m2.7-free'],
+        failClosed: true,
+      } as any;
+
+      const manager = new CouncilManager(ctx, config, undefined);
+
+      await expect(
+        manager.runCouncil('test prompt', undefined, 'parent-session-id'),
+      ).rejects.toThrow(
+        'Model policy blocked openai/gpt-5.4-mini for councillor alpha',
+      );
+    });
+
     test('uses custom timeouts from config', async () => {
       const ctx = createMockContext({
         sessionMessagesResult: {

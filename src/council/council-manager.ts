@@ -11,7 +11,7 @@ import {
   formatMasterSynthesisPrompt,
 } from '../agents/council';
 import type { SubagentDepthTracker } from '../background/subagent-depth';
-import type { PluginConfig } from '../config';
+import { assertModelAllowed, type PluginConfig } from '../config';
 import {
   COUNCILLOR_STAGGER_MS,
   TMUX_SPAWN_DELAY_MS,
@@ -119,6 +119,18 @@ export class CouncilManager {
         error: `Preset "${resolvedPreset}" has no councillors configured`,
         councillorResults: [],
       };
+    }
+
+    for (const [name, councillor] of Object.entries(preset.councillors)) {
+      assertModelAllowed(councillor.model, this.config, `councillor ${name}`);
+    }
+    assertModelAllowed(
+      preset.master?.model ?? councilConfig.master.model,
+      this.config,
+      'council master',
+    );
+    for (const fallbackModel of councilConfig.master_fallback ?? []) {
+      assertModelAllowed(fallbackModel, this.config, 'council master fallback');
     }
 
     const councillorsTimeout = councilConfig.councillors_timeout ?? 180000;
