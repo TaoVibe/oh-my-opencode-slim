@@ -110,8 +110,11 @@ You can specify either:
         parentSessionId,
       });
       const metadata = {
-        model: manager.resolveConfiguredModel(resolved.agent),
-        fallbackChain: manager.resolveFallbackChain(resolved.agent),
+        model: manager.resolveConfiguredModel(resolved.agent, parentSessionId),
+        fallbackChain: manager.resolveFallbackChain(
+          resolved.agent,
+          parentSessionId,
+        ),
       };
 
       return formatTaskLaunchMessage(task, resolved, runInBackground, metadata);

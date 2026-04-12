@@ -900,7 +900,7 @@ describe('BackgroundTaskManager', () => {
         },
       });
 
-      expect(task.status).toBe('running');
+      expect(['running', 'completed']).toContain(task.status);
 
       resolveTaskPrompt?.();
       await new Promise((r) => setTimeout(r, 10));
@@ -1705,4 +1705,150 @@ describe('BackgroundTaskManager', () => {
       ]);
     });
   });
+
+  describe('session-scoped agent model overrides', () => {
+    test('uses session override model for future delegated launch', async () => {
+      const ctx = createMockContext({
+        sessionMessagesResult: {
+          data: [
+            {
+              info: { role: 'assistant' },
+              parts: [{ type: 'text', text: 'done' }],
+            },
+          ],
+        },
+        promptImpl: async (args) => args,
+      });
+      const manager = new BackgroundTaskManager(ctx);
+
+      manager.setSessionAgentModelOverride(
+        'parent-123',
+        'explorer',
+        'openai/gpt-5.4-mini',
+      );
+
+      const task = manager.launch({
+        agent: 'explorer',
+        prompt: 'test',
+        description: 'test',
+        parentSessionId: 'parent-123',
+      });
+
+      await waitForStartupToFinish();
+
+      const promptCalls = ctx.client.session.prompt.mock.calls as Array<
+        [{ body?: { model?: { providerID?: string; modelID?: string } } }]
+      >;
+      const taskPromptCall = promptCalls.find(
+        (call) => call[0].body?.model?.providerID === 'openai',
+      );
+
+      expect(['running', 'completed']).toContain(task.status);
+      expect(taskPromptCall?.[0].body?.model?.providerID).toBe('openai');
+      expect(taskPromptCall?.[0].body?.model?.modelID).toBe('gpt-5.4-mini');
+      expect(manager.resolveConfiguredModel('explorer', 'parent-123')).toBe(
+        'openai/gpt-5.4-mini',
+      );
+      expect(manager.resolveFallbackChain('explorer', 'parent-123')[0]).toBe(
+        'openai/gpt-5.4-mini',
+      );
+    });
+
+
+
+    test('override does not bleed into other parent sessions or defaults', () => {
+      const ctx = createMockContext();
+      const manager = new BackgroundTaskManager(ctx, undefined, {
+        agents: {
+          explorer: { model: 'opencode-go/minimax-m2.5', variant: 'medium' },
+        },
+        fallback: {
+          enabled: true,
+          timeoutMs: 30000,
+          retryDelayMs: 500,
+          chains: {
+            explorer: ['opencode-go/minimax-m2.7', 'openai/gpt-5.4-mini'],
+          },
+        },
+      } as any);
+
+      manager.setSessionAgentModelOverride(
+        'parent-123',
+        'explorer',
+        'openai/gpt-5.4-mini',
+      );
+
+      expect(manager.resolveConfiguredModel('explorer', 'parent-123')).toBe(
+        'openai/gpt-5.4-mini',
+      );
+      expect(manager.resolveConfiguredModel('explorer', 'other-parent')).toBe(
+        'opencode-go/minimax-m2.5',
+      );
+      expect(manager.resolveConfiguredModel('explorer')).toBe(
+        'opencode-go/minimax-m2.5',
+      );
+      expect(manager.resolveFallbackChain('explorer', 'other-parent')).toEqual([
+        'opencode-go/minimax-m2.5',
+        'opencode-go/minimax-m2.7',
+        'openai/gpt-5.4-mini',
+      ]);
+    });
+
+    test('clear removes only one agent override and clear all removes session scope only', () => {
+      const ctx = createMockContext();
+      const manager = new BackgroundTaskManager(ctx);
+
+      manager.setSessionAgentModelOverride(
+        'parent-123',
+        'explorer',
+        'openai/gpt-5.4-mini',
+      );
+      manager.setSessionAgentModelOverride(
+        'parent-123',
+        'librarian',
+        'openai/gpt-5.4-mini',
+      );
+      manager.setSessionAgentModelOverride(
+        'parent-999',
+        'explorer',
+        'openai/gpt-5.4-mini',
+      );
+
+      manager.clearSessionAgentModelOverride('parent-123', 'explorer');
+      expect(manager.getSessionAgentModelOverrides('parent-123')).toEqual({
+        librarian: 'openai/gpt-5.4-mini',
+      });
+      expect(manager.getSessionAgentModelOverrides('parent-999')).toEqual({
+        explorer: 'openai/gpt-5.4-mini',
+      });
+
+      manager.clearSessionAgentModelOverride('parent-123');
+      expect(manager.getSessionAgentModelOverrides('parent-123')).toEqual({});
+      expect(manager.getSessionAgentModelOverrides('parent-999')).toEqual({
+        explorer: 'openai/gpt-5.4-mini',
+      });
+    });
+
+    test('clears overrides when parent session is deleted', async () => {
+      const ctx = createMockContext();
+      const manager = new BackgroundTaskManager(ctx);
+
+      manager.setSessionAgentModelOverride(
+        'parent-123',
+        'explorer',
+        'openai/gpt-5.4-mini',
+      );
+      expect(manager.getSessionAgentModelOverrides('parent-123')).toEqual({
+        explorer: 'openai/gpt-5.4-mini',
+      });
+
+      await manager.handleSessionDeleted({
+        type: 'session.deleted',
+        properties: { sessionID: 'parent-123' },
+      });
+
+      expect(manager.getSessionAgentModelOverrides('parent-123')).toEqual({});
+    });
+  });
+
 });

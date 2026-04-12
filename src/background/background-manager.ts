@@ -85,6 +85,10 @@ export interface BackgroundTaskSnapshot {
   fallbackChain: string[];
 }
 
+export interface SessionAgentModelOverrideSnapshot {
+  sessionId: string;
+  overrides: Record<string, string>;
+}
 
 function generateTaskId(): string {
   return `bg_${Math.random().toString(36).substring(2, 10)}`;
@@ -113,6 +117,7 @@ export class BackgroundTaskManager {
     string,
     (task: BackgroundTask) => void
   >();
+  private sessionAgentModelOverrides = new Map<string, Map<string, string>>();
 
   constructor(
     ctx: PluginInput,
@@ -238,7 +243,58 @@ export class BackgroundTaskManager {
     }
   }
 
-  resolveFallbackChain(agentName: string): string[] {
+  private getSessionAgentModelOverride(
+    sessionId: string | undefined,
+    agentName: string,
+  ): string | undefined {
+    if (!sessionId) return undefined;
+    return this.sessionAgentModelOverrides.get(sessionId)?.get(agentName);
+  }
+
+  setSessionAgentModelOverride(
+    sessionId: string,
+    agentName: string,
+    model: string,
+  ): void {
+    const sessionOverrides =
+      this.sessionAgentModelOverrides.get(sessionId) ?? new Map<string, string>();
+    sessionOverrides.set(agentName, model);
+    this.sessionAgentModelOverrides.set(sessionId, sessionOverrides);
+  }
+
+  clearSessionAgentModelOverride(sessionId: string, agentName?: string): void {
+    if (!agentName) {
+      this.sessionAgentModelOverrides.delete(sessionId);
+      return;
+    }
+
+    const sessionOverrides = this.sessionAgentModelOverrides.get(sessionId);
+    if (!sessionOverrides) return;
+    sessionOverrides.delete(agentName);
+    if (sessionOverrides.size === 0) {
+      this.sessionAgentModelOverrides.delete(sessionId);
+    }
+  }
+
+  getSessionAgentModelOverrides(
+    sessionId: string,
+  ): Record<string, string> {
+    return Object.fromEntries(
+      this.sessionAgentModelOverrides.get(sessionId)?.entries() ?? [],
+    );
+  }
+
+  getAllSessionAgentModelOverrideSnapshots(): SessionAgentModelOverrideSnapshot[] {
+    return Array.from(this.sessionAgentModelOverrides.entries()).map(
+      ([sessionId, overrides]) => ({
+        sessionId,
+        overrides: Object.fromEntries(overrides),
+      }),
+    );
+  }
+
+  resolveFallbackChain(agentName: string, sessionId?: string): string[] {
+    const sessionOverride = this.getSessionAgentModelOverride(sessionId, agentName);
     const fallback = this.config?.fallback;
     const chains = fallback?.chains as
       | Record<string, string[] | undefined>
@@ -258,7 +314,10 @@ export class BackgroundTaskManager {
     } else {
       primaryIds = [];
     }
-    for (const model of [...primaryIds, ...configuredChain]) {
+    const modelsToUse = sessionOverride
+      ? [sessionOverride, ...primaryIds, ...configuredChain]
+      : [...primaryIds, ...configuredChain];
+    for (const model of modelsToUse) {
       if (!model || seen.has(model)) continue;
       seen.add(model);
       chain.push(model);
@@ -267,7 +326,14 @@ export class BackgroundTaskManager {
     return chain;
   }
 
-  resolveConfiguredModel(agentName: string): string | undefined {
+  resolveConfiguredModel(
+    agentName: string,
+    sessionId?: string,
+  ): string | undefined {
+    const sessionOverride = this.getSessionAgentModelOverride(sessionId, agentName);
+    if (sessionOverride) {
+      return sessionOverride;
+    }
     const model = this.config?.agents?.[agentName]?.model;
 
     if (Array.isArray(model)) {
@@ -282,7 +348,13 @@ export class BackgroundTaskManager {
     return DEFAULT_MODELS[agentName as keyof typeof DEFAULT_MODELS];
   }
 
-  resolveConfiguredVariant(agentName: string): string | undefined {
+  resolveConfiguredVariant(
+    agentName: string,
+    sessionId?: string,
+  ): string | undefined {
+    if (this.getSessionAgentModelOverride(sessionId, agentName)) {
+      return undefined;
+    }
     const configuredVariant = this.config?.agents?.[agentName]?.variant;
     if (typeof configuredVariant === 'string' && configuredVariant.trim()) {
       return configuredVariant.trim();
@@ -389,7 +461,7 @@ export class BackgroundTaskManager {
         : 0; // 0 = no timeout when fallback disabled
       const retryDelayMs = this.config?.fallback?.retryDelayMs ?? 500;
       const chain = fallbackEnabled
-        ? this.resolveFallbackChain(task.agent)
+        ? this.resolveFallbackChain(task.agent, task.parentSessionId)
         : [];
       const attemptModels = chain.length > 0 ? chain : [undefined];
 
@@ -528,6 +600,8 @@ export class BackgroundTaskManager {
     const sessionId = event.properties?.info?.id ?? event.properties?.sessionID;
     if (!sessionId) return;
 
+    this.clearSessionAgentModelOverride(sessionId);
+
     const taskId = this.tasksBySessionId.get(sessionId);
     if (!taskId) return;
 
@@ -661,9 +735,9 @@ export class BackgroundTaskManager {
       status: task.status,
       parentSessionId: task.parentSessionId,
       startedAt: task.startedAt.toISOString(),
-      configuredModel: this.resolveConfiguredModel(task.agent),
-      variant: this.resolveConfiguredVariant(task.agent),
-      fallbackChain: this.resolveFallbackChain(task.agent),
+      configuredModel: this.resolveConfiguredModel(task.agent, task.parentSessionId),
+      variant: this.resolveConfiguredVariant(task.agent, task.parentSessionId),
+      fallbackChain: this.resolveFallbackChain(task.agent, task.parentSessionId),
     }));
   }
 

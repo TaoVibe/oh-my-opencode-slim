@@ -22,6 +22,7 @@ describe('observability_status tool', () => {
             ],
           },
         ],
+        getSessionAgentModelOverrides: () => ({ explorer: 'openai/gpt-5.4-mini' }),
       } as any,
       {
         getTrackedSessions: () => [
@@ -34,12 +35,16 @@ describe('observability_status tool', () => {
             lastSeenAt: 2,
           },
         ],
+        getSessionAgentModelOverrides: () => ({ explorer: 'openai/gpt-5.4-mini' }),
       } as any,
     );
 
-    const result = await tools.observability_status.execute({
-      include_completed: false,
-    });
+    const result = await tools.observability_status.execute(
+      {
+        include_completed: false,
+      },
+      { sessionID: 'parent-1' } as any,
+    );
 
     expect(result).toContain('Runtime Status');
     expect(result).toContain('bg_123 | explorer | running | Map slim fork');
@@ -50,5 +55,7 @@ describe('observability_status tool', () => {
     expect(result).toContain(
       '%12 | Background: Map slim fork | session=session-1',
     );
+    expect(result).toContain('Session Overrides');
+    expect(result).toContain('explorer=openai/gpt-5.4-mini');
   });
 });

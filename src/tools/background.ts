@@ -45,6 +45,10 @@ export function createBackgroundTools(
   _pluginConfig?: PluginConfig,
 ): Record<string, ToolDefinition> {
   const agentNames = ALL_AGENT_NAMES.join(', ');
+  const overridableAgents = ALL_AGENT_NAMES.filter(
+    (name) => !['orchestrator', 'councillor', 'council-master'].includes(name),
+  );
+  const overridableAgentNames = overridableAgents.join(', ');
   const validCategories = getValidCategoriesString();
   const normalizeOptionalString = (
     value: string | null | undefined,
@@ -140,11 +144,84 @@ You can specify either:
         ? { agent: resolvedAgent, via: 'category', category: categoryArg }
         : { agent: resolvedAgent, via: 'subagent_type' };
       const metadata = {
-        model: manager.resolveConfiguredModel(resolvedAgent),
-        fallbackChain: manager.resolveFallbackChain(resolvedAgent),
+        model: manager.resolveConfiguredModel(resolvedAgent, parentSessionId),
+        fallbackChain: manager.resolveFallbackChain(resolvedAgent, parentSessionId),
       };
 
       return formatTaskLaunchMessage(task, resolved, true, metadata);
+    },
+  });
+
+
+  const session_agent_model = tool({
+    description: `Manage session-scoped per-agent model overrides for future delegated launches.
+
+Set agent+model to override a delegated agent for the current parent session only.
+Use clear=true with agent to remove one override, or clear_all=true to remove all overrides.
+Call with no mutation args to inspect current session overrides.`,
+    args: {
+      agent: optionalTrimmedString().describe(
+        `Delegated agent to override: ${overridableAgentNames}`,
+      ),
+      model: optionalTrimmedString().describe('Override model in provider/model format'),
+      clear: z.boolean().optional().default(false).describe('Clear override for one agent'),
+      clear_all: z.boolean().optional().default(false).describe('Clear all overrides for current session'),
+    },
+    async execute(args, toolContext) {
+      if (
+        !toolContext ||
+        typeof toolContext !== 'object' ||
+        !('sessionID' in toolContext)
+      ) {
+        throw new Error('Invalid toolContext: missing sessionID');
+      }
+
+      const sessionId = (toolContext as { sessionID: string }).sessionID;
+      const agent = normalizeOptionalString(args.agent);
+      const model = normalizeOptionalString(args.model);
+      const clear = args.clear === true;
+      const clearAll = args.clear_all === true;
+
+      if (clearAll) {
+        manager.clearSessionAgentModelOverride(sessionId);
+        return 'Cleared all session agent model overrides.';
+      }
+
+      if (clear) {
+        if (!agent) {
+          return 'Provide agent when using clear=true, or use clear_all=true.';
+        }
+        manager.clearSessionAgentModelOverride(sessionId, agent);
+        return `Cleared session override for ${agent}.`;
+      }
+
+      if (agent && model) {
+        if (!overridableAgents.includes(agent as (typeof overridableAgents)[number])) {
+          return `Agent '${agent}' is not overridable. Allowed: ${overridableAgentNames}`;
+        }
+        if (!model.includes('/') || /\s/.test(model)) {
+          return 'Model must use provider/model format.';
+        }
+        manager.setSessionAgentModelOverride(sessionId, agent, model);
+        const fallback = manager.resolveFallbackChain(agent, sessionId)
+          .filter((item) => item !== model)
+          .slice(0, 2)
+          .join('→');
+        return fallback
+          ? `Set session override: ${agent} -> ${model} | fallback=${fallback}`
+          : `Set session override: ${agent} -> ${model}`;
+      }
+
+      const overrides = manager.getSessionAgentModelOverrides(sessionId);
+      const entries = Object.entries(overrides);
+      if (entries.length === 0) {
+        return 'No session agent model overrides.';
+      }
+
+      return [
+        'Session Agent Model Overrides',
+        ...entries.map(([name, value]) => `${name}=${value}`),
+      ].join('\n');
     },
   });
 
@@ -246,5 +323,10 @@ Only cancels pending/starting/running tasks.`,
     },
   });
 
-  return { background_task, background_output, background_cancel };
+  return {
+    background_task,
+    session_agent_model,
+    background_output,
+    background_cancel,
+  };
 }

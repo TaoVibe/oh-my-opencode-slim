@@ -29,7 +29,7 @@ Returns:
         .default(false)
         .describe('Include completed/failed/cancelled tasks'),
     },
-    async execute(args) {
+    async execute(args, toolContext) {
       const includeCompleted = args.include_completed ?? false;
       const allTasks = backgroundManager.getTaskSnapshots();
       const tasks = includeCompleted
@@ -41,6 +41,13 @@ Returns:
               task.status === 'running',
           );
       const panes = multiplexerSessionManager.getTrackedSessions();
+      const currentSessionId =
+        toolContext && typeof toolContext === 'object' && 'sessionID' in toolContext
+          ? String((toolContext as { sessionID: string }).sessionID)
+          : undefined;
+      const sessionOverrides = currentSessionId
+        ? backgroundManager.getSessionAgentModelOverrides(currentSessionId)
+        : {};
 
       const counts = {
         pending: allTasks.filter((task) => task.status === 'pending').length,
@@ -70,6 +77,16 @@ Returns:
           lines.push(`  variant=${task.variant ?? 'none'}`);
           lines.push(`  fallback=${formatList(task.fallbackChain)}`);
           lines.push(`  session=${task.sessionId ?? 'not started yet'}`);
+        }
+      }
+
+      lines.push('', 'Session Overrides');
+      const overrideEntries = Object.entries(sessionOverrides);
+      if (overrideEntries.length === 0) {
+        lines.push('(none)');
+      } else {
+        for (const [agent, model] of overrideEntries) {
+          lines.push(`${agent}=${model}`);
         }
       }
 
