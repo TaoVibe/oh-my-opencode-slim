@@ -103,6 +103,14 @@ export function createToolPolicyHook(_ctx: PluginInput) {
   const approvedAsks = new Map<string, ToolPolicyEvaluation>();
   const pendingBlockedBySession = new Map<string, PendingBlockedCommand>();
   const approvedOverrideBySession = new Map<string, ApprovedOverride>();
+  const approvedGlobalOverrideByCommand = new Map<string, number>();
+
+  function consumeGlobalOverride(command: string): boolean {
+    const expiresAt = approvedGlobalOverrideByCommand.get(command);
+    if (!expiresAt) return false;
+    approvedGlobalOverrideByCommand.delete(command);
+    return isOverrideFresh(expiresAt);
+  }
 
   return {
     'experimental.chat.messages.transform': async (
@@ -143,6 +151,10 @@ export function createToolPolicyHook(_ctx: PluginInput) {
           command: pending.command,
           expiresAt: Date.now() + OVERRIDE_TTL_MS,
         });
+        approvedGlobalOverrideByCommand.set(
+          pending.command,
+          Date.now() + OVERRIDE_TTL_MS,
+        );
         pendingBlockedBySession.delete(sessionID);
         return;
       }
@@ -170,6 +182,13 @@ export function createToolPolicyHook(_ctx: PluginInput) {
           output.status = 'allow';
           return;
         }
+      }
+      if (command && consumeGlobalOverride(command)) {
+        if (callID) {
+          approvedAsks.set(callID, buildOverrideEvaluation(evaluation));
+        }
+        output.status = 'allow';
+        return;
       }
 
       if (sessionID && command && evaluation.decision !== 'allow') {
@@ -204,6 +223,15 @@ export function createToolPolicyHook(_ctx: PluginInput) {
       }
 
       const command = getString(output.args.command);
+      if (command && consumeGlobalOverride(command)) {
+        const evaluation = classifyToolExecution({
+          tool: input.tool,
+          args: output.args,
+        });
+        evaluations.set(input.callID, buildOverrideEvaluation(evaluation));
+        return;
+      }
+
       if (input.sessionID && command) {
         const override = approvedOverrideBySession.get(input.sessionID);
         if (

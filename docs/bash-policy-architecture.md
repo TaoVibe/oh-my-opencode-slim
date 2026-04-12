@@ -90,6 +90,15 @@ The native policy now supports a narrow, one-shot override path for the exact pr
 - does **not** grant a wildcard permission to future commands
 - does **not** override a different command in the same session
 
+### Cross-path bridge
+
+To handle tool paths that do not carry the same session override state, the policy also keeps a short-lived **global exact-command one-shot override**.
+
+- it is created only after a prior blocked/ask-class command plus explicit user confirmation
+- it matches the next exact same command only
+- it is consumed immediately
+- it exists only to bridge execution paths that do not propagate the original session context
+
 ### Why this exists
 
 This allows a user to explicitly proceed after seeing a block warning without weakening the default policy into a broad allowlist.

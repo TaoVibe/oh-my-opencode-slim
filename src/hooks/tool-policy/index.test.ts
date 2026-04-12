@@ -568,4 +568,77 @@ describe('createToolPolicyHook', () => {
       ),
     ).resolves.toBeUndefined();
   });
+
+  test('bridges override to next exact command without session id', async () => {
+    const hook = createToolPolicyHook(makeCtx());
+
+    await hook['permission.ask'](
+      {
+        sessionID: 's1',
+        type: 'bash',
+        metadata: {
+          command: 'git push tao feature/category-routing',
+          tool: { callID: 'c1' },
+        },
+      },
+      { status: 'allow' as 'ask' | 'deny' | 'allow' },
+    );
+    await hook['experimental.chat.messages.transform'](
+      {},
+      {
+        messages: [
+          {
+            info: { role: 'user', sessionID: 's1', agent: 'orchestrator' },
+            parts: [{ type: 'text', text: 'push again' }],
+          },
+        ],
+      },
+    );
+
+    await expect(
+      hook['tool.execute.before'](
+        { tool: 'bash', callID: 'c2' },
+        { args: { command: 'git push tao feature/category-routing' } },
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  test('consumes global override after one exact command', async () => {
+    const hook = createToolPolicyHook(makeCtx());
+
+    await hook['permission.ask'](
+      {
+        sessionID: 's1',
+        type: 'bash',
+        metadata: {
+          command: 'git push tao feature/category-routing',
+          tool: { callID: 'c1' },
+        },
+      },
+      { status: 'allow' as 'ask' | 'deny' | 'allow' },
+    );
+    await hook['experimental.chat.messages.transform'](
+      {},
+      {
+        messages: [
+          {
+            info: { role: 'user', sessionID: 's1', agent: 'orchestrator' },
+            parts: [{ type: 'text', text: 'push again' }],
+          },
+        ],
+      },
+    );
+
+    await hook['tool.execute.before'](
+      { tool: 'bash', callID: 'c2' },
+      { args: { command: 'git push tao feature/category-routing' } },
+    );
+
+    await expect(
+      hook['tool.execute.before'](
+        { tool: 'bash', callID: 'c3' },
+        { args: { command: 'git push tao feature/category-routing' } },
+      ),
+    ).rejects.toThrow(/Pushing writes shared remote state/);
+  });
 });
