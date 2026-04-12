@@ -111,6 +111,14 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     config,
   );
 
+  // Add delegate_task tool with category support
+  const delegateTaskTools = createDelegateTaskTool(
+    ctx,
+    backgroundManager,
+    multiplexerConfig,
+    config,
+  );
+
   // Initialize council tools (only when council is configured)
   const councilTools = config.council
     ? createCouncilTool(
@@ -190,6 +198,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
     tool: {
       ...backgroundTools,
+      ...delegateTaskTools,
       ...councilTools,
       webfetch,
       ...todoContinuationHook.tool,

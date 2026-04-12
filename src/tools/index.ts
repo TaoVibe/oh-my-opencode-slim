@@ -11,3 +11,4 @@ export {
   setUserLspConfig,
 } from './lsp';
 export { createWebfetchTool } from './smartfetch';
+export { createDelegateTaskTool } from './delegate-task';
