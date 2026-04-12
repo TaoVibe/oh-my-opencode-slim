@@ -466,6 +466,61 @@ describe('createToolPolicyHook', () => {
     ).resolves.toBeUndefined();
   });
 
+  test('allows user-requested git push without a prior blocked attempt', async () => {
+    const hook = createToolPolicyHook(makeCtx());
+    const toolOutput = { metadata: {} as Record<string, unknown> };
+
+    await hook['experimental.chat.messages.transform'](
+      {},
+      {
+        messages: [
+          {
+            info: { role: 'user', sessionID: 's1', agent: 'orchestrator' },
+            parts: [{ type: 'text', text: 'commit first and push' }],
+          },
+        ],
+      },
+    );
+
+    await expect(
+      hook['tool.execute.before'](
+        { tool: 'bash', callID: 'c1', sessionID: 's1' },
+        { args: { command: 'git push origin main' } },
+      ),
+    ).resolves.toBeUndefined();
+
+    await hook['tool.execute.after']({ callID: 'c1' }, toolOutput);
+
+    expect(toolOutput.metadata.toolPolicy).toEqual({
+      decision: 'allow',
+      category: 'user-override:git-push',
+      reason: 'Pushing writes shared remote state.',
+    });
+  });
+
+  test('does not allow unrelated ask-class command after push request', async () => {
+    const hook = createToolPolicyHook(makeCtx());
+
+    await hook['experimental.chat.messages.transform'](
+      {},
+      {
+        messages: [
+          {
+            info: { role: 'user', sessionID: 's1', agent: 'orchestrator' },
+            parts: [{ type: 'text', text: 'please push the branch' }],
+          },
+        ],
+      },
+    );
+
+    await expect(
+      hook['tool.execute.before'](
+        { tool: 'bash', callID: 'c1', sessionID: 's1' },
+        { args: { command: 'gh pr review 123 --approve' } },
+      ),
+    ).rejects.toThrow(/GitHub CLI write operation affects shared state/);
+  });
+
   test('does not override a different command after proceed message', async () => {
     const hook = createToolPolicyHook(makeCtx());
     const permissionOutput = { status: 'allow' as 'ask' | 'deny' | 'allow' };

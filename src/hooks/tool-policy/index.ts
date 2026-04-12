@@ -18,6 +18,11 @@ interface ApprovedOverride {
   expiresAt: number;
 }
 
+interface ApprovedIntent {
+  category: string;
+  expiresAt: number;
+}
+
 const OVERRIDE_TTL_MS = 5 * 60 * 1000;
 const EXPLICIT_OVERRIDE_PATTERN =
   /\b(proceed|override|go ahead|run it|do it|push it|proceed anyway|override it)\b/i;
@@ -98,12 +103,26 @@ function isExplicitOverrideIntent(text: string): boolean {
   );
 }
 
+function detectApprovedIntentCategory(text: string): string | undefined {
+  const normalized = text.toLowerCase();
+  if (/\bgit push\b/.test(normalized)) {
+    return 'git-push';
+  }
+
+  if (/\bpush\b/.test(normalized)) {
+    return 'git-push';
+  }
+
+  return undefined;
+}
+
 export function createToolPolicyHook(_ctx: PluginInput) {
   const evaluations = new Map<string, ToolPolicyEvaluation>();
   const approvedAsks = new Map<string, ToolPolicyEvaluation>();
   const pendingBlockedBySession = new Map<string, PendingBlockedCommand>();
   const approvedOverrideBySession = new Map<string, ApprovedOverride>();
   const approvedGlobalOverrideByCommand = new Map<string, number>();
+  const approvedIntentBySession = new Map<string, ApprovedIntent>();
 
   function consumeGlobalOverride(command: string): boolean {
     const expiresAt = approvedGlobalOverrideByCommand.get(command);
@@ -131,18 +150,26 @@ export function createToolPolicyHook(_ctx: PluginInput) {
         const sessionID = message.info.sessionID;
         if (!sessionID) return;
 
-        const pending = pendingBlockedBySession.get(sessionID);
-        if (!pending || !isOverrideFresh(pending.expiresAt)) {
-          pendingBlockedBySession.delete(sessionID);
-          return;
-        }
-
         const text = message.parts
           .filter(
             (part) => part.type === 'text' && typeof part.text === 'string',
           )
           .map((part) => part.text ?? '')
           .join('\n');
+        const approvedIntentCategory = detectApprovedIntentCategory(text);
+        if (approvedIntentCategory) {
+          approvedIntentBySession.set(sessionID, {
+            category: approvedIntentCategory,
+            expiresAt: Date.now() + OVERRIDE_TTL_MS,
+          });
+        }
+
+        const pending = pendingBlockedBySession.get(sessionID);
+        if (!pending || !isOverrideFresh(pending.expiresAt)) {
+          pendingBlockedBySession.delete(sessionID);
+          return;
+        }
+
         if (!isExplicitOverrideIntent(text)) {
           return;
         }
@@ -168,6 +195,21 @@ export function createToolPolicyHook(_ctx: PluginInput) {
       const callID = getCallId(input);
       const command = extractCommandFromContainer(input.metadata);
       const sessionID = input.sessionID;
+      if (sessionID) {
+        const approvedIntent = approvedIntentBySession.get(sessionID);
+        if (
+          approvedIntent &&
+          isOverrideFresh(approvedIntent.expiresAt) &&
+          approvedIntent.category === evaluation.category
+        ) {
+          approvedIntentBySession.delete(sessionID);
+          if (callID) {
+            approvedAsks.set(callID, buildOverrideEvaluation(evaluation));
+          }
+          output.status = 'allow';
+          return;
+        }
+      }
       if (sessionID && command) {
         const override = approvedOverrideBySession.get(sessionID);
         if (
@@ -223,11 +265,25 @@ export function createToolPolicyHook(_ctx: PluginInput) {
       }
 
       const command = getString(output.args.command);
+      const evaluation = classifyToolExecution({
+        tool: input.tool,
+        args: output.args,
+      });
+
+      if (input.sessionID) {
+        const approvedIntent = approvedIntentBySession.get(input.sessionID);
+        if (
+          approvedIntent &&
+          isOverrideFresh(approvedIntent.expiresAt) &&
+          approvedIntent.category === evaluation.category
+        ) {
+          approvedIntentBySession.delete(input.sessionID);
+          evaluations.set(input.callID, buildOverrideEvaluation(evaluation));
+          return;
+        }
+      }
+
       if (command && consumeGlobalOverride(command)) {
-        const evaluation = classifyToolExecution({
-          tool: input.tool,
-          args: output.args,
-        });
         evaluations.set(input.callID, buildOverrideEvaluation(evaluation));
         return;
       }
@@ -249,10 +305,6 @@ export function createToolPolicyHook(_ctx: PluginInput) {
         }
       }
 
-      const evaluation = classifyToolExecution({
-        tool: input.tool,
-        args: output.args,
-      });
       evaluations.set(input.callID, evaluation);
       if (input.sessionID && command && evaluation.decision !== 'allow') {
         pendingBlockedBySession.set(input.sessionID, {
