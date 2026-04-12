@@ -108,9 +108,43 @@ describe('createToolPolicyHook', () => {
     expect(
       classifyToolExecution({
         tool: 'bash',
+        args: {
+          command: 'env FOO=bar npm ci',
+          workdir: '/Users/mdoan/Projects/Bubbler/frontend',
+        },
+      }),
+    ).toEqual({ decision: 'allow', category: 'env-safe-command' });
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
         args: { command: 'env FOO=bar python -c "print(1)"' },
       }).decision,
     ).toBe('deny');
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'env FOO=bar bun x something' },
+      }).decision,
+    ).toBe('deny');
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'env FOO=bar uv run pytest tests/unit | cat' },
+      }).decision,
+    ).toBe('deny');
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: {
+          command:
+            'bunx biome check --write src/hooks/tool-policy/classify.ts src/hooks/tool-policy/index.test.ts',
+        },
+      }),
+    ).toEqual({ decision: 'allow', category: 'bunx-biome' });
   });
 
   test('asks for shared-state or risky but legitimate commands', () => {
@@ -175,6 +209,13 @@ describe('createToolPolicyHook', () => {
         },
       }).decision,
     ).toBe('ask');
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'bunx cowsay hello' },
+      }).decision,
+    ).toBe('ask');
   });
 
   test('denies unsafe archive extraction and broad remote wget downloads', () => {
@@ -230,6 +271,24 @@ describe('createToolPolicyHook', () => {
         args: { command: 'py-spy top --pid 1234' },
       }),
     ).toEqual({ decision: 'allow', category: 'profiler' });
+  });
+
+  test('denies inline shell and interpreter wrappers', () => {
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'bash -c "rm -rf /tmp/demo"' },
+      }).decision,
+    ).toBe('deny');
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: {
+          command: 'python3 -c "import os; os.system(\'rm -rf /tmp/demo\')"',
+        },
+      }).decision,
+    ).toBe('deny');
   });
 
   test('denies destructive bash execution before tool run', async () => {

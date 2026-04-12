@@ -12,12 +12,16 @@ const WGET_REMOTE_PATTERN = /\bwget\s+/;
 const TAR_EXTRACT_PATTERN =
   /\btar\s.*(?:-[a-zA-Z]*x[a-zA-Z]*\b|\bx[a-zA-Z]*\b)/;
 const UNZIP_EXTRACT_PATTERN = /\bunzip\s+(?!-l\b)/;
+const ENV_PREFIX_PATTERN = /^\s*env\s+(?:\S+=\S+\s+)+/;
+const SAFE_ENV_UV_PATTERN =
+  /^uv\s+(?:sync\b|run\s+(?:pytest|ruff|pyright|semgrep|lint-imports)\b)(?!.*(?:&&|;|\|\||\|))/;
+const SAFE_BUNX_BIOME_PATTERN =
+  /^bunx\s+biome\s+(?:check|format|lint)\b(?!.*(?:&&|;|\|\||\|))/;
+const INLINE_SHELL_PATTERN = /^\s*(?:bash|sh|zsh)\s+-c\b/;
+const INLINE_INTERPRETER_PATTERN = /^\s*(?:python|python3|node|bun)\s+-[ce]\b/;
 
 const REPO_FRONTEND_INSTALL_PATTERN =
   /(?:^|&&|;)\s*cd\s+(?:\.\/)?(?:frontend|src\/clipper-frontend)\s*&&\s*npm\s+(?:install|ci)\b|\bnpm\s+--prefix\s+(?:\.\/)?(?:frontend|src\/clipper-frontend)\s+(?:install|ci)\b/;
-
-const SAFE_ENV_COMMAND_PATTERN =
-  /^\s*env\s+(?:\S+=\S+\s+)+(?:uv|pytest|ruff|pyright|npm|bun)\b(?!.*(?:&&|;|\|\|)).*$/;
 
 const TAR_LIST_PATTERN = /\btar\s+(?:-[a-zA-Z]*t[a-zA-Z]*\b|t[a-zA-Z]*\b)/;
 
@@ -35,8 +39,8 @@ const ALLOW_BASH_PATTERNS: Array<[RegExp, string]> = [
   ],
   [/\bunzip\s+-l\b/, 'unzip-list'],
   [TAR_LIST_PATTERN, 'tar-list'],
-  [SAFE_ENV_COMMAND_PATTERN, 'env-safe-command'],
   [/\b(?:py-spy|memray|scalene)\b/, 'profiler'],
+  [SAFE_BUNX_BIOME_PATTERN, 'bunx-biome'],
 ];
 
 const DENY_BASH_PATTERNS: Array<[RegExp, string, string]> = [
@@ -106,6 +110,16 @@ const DENY_BASH_PATTERNS: Array<[RegExp, string, string]> = [
     'curl-auth-remote',
     'Remote curl with auth headers may exfiltrate credentials.',
   ],
+  [
+    INLINE_SHELL_PATTERN,
+    'inline-shell',
+    'Inline shell execution can bypass command classification.',
+  ],
+  [
+    INLINE_INTERPRETER_PATTERN,
+    'inline-interpreter',
+    'Inline interpreter execution can run arbitrary code.',
+  ],
   [/^\s*eval\s/, 'eval', 'eval executes arbitrary code.'],
   [/^\s*exec\s/, 'exec', 'exec replaces the current process.'],
   [
@@ -165,6 +179,7 @@ const ASK_BASH_PATTERNS: Array<[RegExp, string, string]> = [
     'Installing packages changes the environment.',
   ],
   [/\bnpx\s/, 'npx', 'npx downloads and executes registry packages.'],
+  [/\bbunx\s/, 'bunx', 'bunx can execute arbitrary packages or binaries.'],
   [
     /\bcargo\s+install\b/,
     'cargo-install',
@@ -211,6 +226,14 @@ function extractCommand(
   }
 
   return undefined;
+}
+
+function extractEnvInnerCommand(command: string): string | undefined {
+  const match = command.match(ENV_PREFIX_PATTERN);
+  if (!match) return undefined;
+
+  const inner = command.slice(match[0].length).trim();
+  return inner.length > 0 ? inner : undefined;
 }
 
 function extractWorkingDirectory(
@@ -330,6 +353,25 @@ function classifyContextualAllow(
   return null;
 }
 
+function classifySafeEnvCommand(
+  command: string,
+  workdir?: string,
+): ToolPolicyEvaluation | null {
+  const inner = extractEnvInnerCommand(command);
+  if (!inner) return null;
+
+  if (SAFE_ENV_UV_PATTERN.test(inner)) {
+    return { decision: 'allow', category: 'env-safe-command' };
+  }
+
+  const contextualAllow = classifyContextualAllow(inner, workdir);
+  if (contextualAllow) {
+    return { decision: 'allow', category: 'env-safe-command' };
+  }
+
+  return null;
+}
+
 function classifyContextualAskOrDeny(
   command: string,
   workdir?: string,
@@ -382,8 +424,9 @@ function classifyBashCommand(
   command: string,
   workdir?: string,
 ): ToolPolicyEvaluation {
-  if (SAFE_ENV_COMMAND_PATTERN.test(command)) {
-    return { decision: 'allow', category: 'env-safe-command' };
+  const safeEnvCommand = classifySafeEnvCommand(command, workdir);
+  if (safeEnvCommand) {
+    return safeEnvCommand;
   }
 
   const contextualAllow = classifyContextualAllow(command, workdir);
