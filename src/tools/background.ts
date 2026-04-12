@@ -12,6 +12,10 @@ import {
   isValidCategory,
   resolveCategory,
 } from '../config/categories';
+import {
+  formatTaskLaunchMessage,
+  type ResolvedAgent,
+} from '../config/resolution';
 import type { MultiplexerConfig } from '../config/schema';
 
 const z = tool.schema;
@@ -132,13 +136,15 @@ You can specify either:
         parentSessionId,
       });
 
-      return `Background task launched.
+      const resolved: ResolvedAgent = categoryArg
+        ? { agent: resolvedAgent, via: 'category', category: categoryArg }
+        : { agent: resolvedAgent, via: 'subagent_type' };
+      const metadata = {
+        model: manager.resolveConfiguredModel(resolvedAgent),
+        fallbackChain: manager.resolveFallbackChain(resolvedAgent),
+      };
 
-Task ID: ${task.id}
-Agent: ${resolvedAgent}${categoryArg ? ` (via category: ${categoryArg})` : ''}
-Status: ${task.status}
-
-Use \`background_output\` with task_id="${task.id}" to get results.`;
+      return formatTaskLaunchMessage(task, resolved, true, metadata);
     },
   });
 

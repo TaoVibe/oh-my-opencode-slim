@@ -238,7 +238,7 @@ export class BackgroundTaskManager {
     }
   }
 
-  private resolveFallbackChain(agentName: string): string[] {
+  resolveFallbackChain(agentName: string): string[] {
     const fallback = this.config?.fallback;
     const chains = fallback?.chains as
       | Record<string, string[] | undefined>
@@ -267,7 +267,7 @@ export class BackgroundTaskManager {
     return chain;
   }
 
-  private resolveConfiguredModel(agentName: string): string | undefined {
+  resolveConfiguredModel(agentName: string): string | undefined {
     const model = this.config?.agents?.[agentName]?.model;
 
     if (Array.isArray(model)) {
@@ -282,7 +282,7 @@ export class BackgroundTaskManager {
     return DEFAULT_MODELS[agentName as keyof typeof DEFAULT_MODELS];
   }
 
-  private resolveConfiguredVariant(agentName: string): string | undefined {
+  resolveConfiguredVariant(agentName: string): string | undefined {
     const configuredVariant = this.config?.agents?.[agentName]?.variant;
     if (typeof configuredVariant === 'string' && configuredVariant.trim()) {
       return configuredVariant.trim();

@@ -111,11 +111,17 @@ describe('formatTaskLaunchMessage', () => {
       mockTask,
       { agent: 'prometheus', via: 'category', category: 'planning' },
       true,
+      {
+        model: 'opencode-go/glm-5.1',
+        fallbackChain: ['opencode-go/glm-5.1', 'openai/gpt-5.4'],
+      },
     );
     expect(message).toContain('task_123');
     expect(message).toContain('prometheus');
     expect(message).toContain('via category: planning');
     expect(message).toContain('background_output');
+    expect(message).toContain('Model: opencode-go/glm-5.1');
+    expect(message).toContain('Fallback: openai/gpt-5.4');
   });
 
   it('formats sync task message', () => {
@@ -123,9 +129,11 @@ describe('formatTaskLaunchMessage', () => {
       mockTask,
       { agent: 'explorer', via: 'subagent_type' },
       false,
+      { model: 'opencode-go/minimax-m2.5' },
     );
     expect(message).toContain('task_123');
     expect(message).toContain('background_output');
     expect(message).not.toContain('background task launched');
+    expect(message).toContain('Model: opencode-go/minimax-m2.5');
   });
 });

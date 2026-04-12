@@ -109,8 +109,12 @@ You can specify either:
         description,
         parentSessionId,
       });
+      const metadata = {
+        model: manager.resolveConfiguredModel(resolved.agent),
+        fallbackChain: manager.resolveFallbackChain(resolved.agent),
+      };
 
-      return formatTaskLaunchMessage(task, resolved, runInBackground);
+      return formatTaskLaunchMessage(task, resolved, runInBackground, metadata);
     },
   });
 

@@ -19,6 +19,11 @@ import {
 } from './categories';
 import type { AgentName } from './constants';
 
+export interface TaskLaunchMetadata {
+  model?: string;
+  fallbackChain?: string[];
+}
+
 /**
  * Result of resolving an agent request
  */
@@ -128,25 +133,43 @@ export function checkAgentAllowed(
 /**
  * Format a successful task launch message.
  */
+function formatLaunchMetadata(metadata?: TaskLaunchMetadata): string {
+  if (!metadata?.model) {
+    return '';
+  }
+
+  const fallback = (metadata.fallbackChain ?? []).filter(
+    (model) => model && model !== metadata.model,
+  );
+  const compactFallback = fallback.slice(0, 2).join('→');
+  return compactFallback
+    ? `Model: ${metadata.model} | Fallback: ${compactFallback}`
+    : `Model: ${metadata.model}`;
+}
+
 export function formatTaskLaunchMessage(
   task: { id: string; status: string },
   resolved: ResolvedAgent,
   runInBackground: boolean,
+  metadata?: TaskLaunchMetadata,
 ): string {
   const categoryNote =
     resolved.via === 'category' ? ` (via category: ${resolved.category})` : '';
+  const metadataLine = formatLaunchMetadata(metadata);
+  const metadataBlock = metadataLine ? `
+${metadataLine}` : '';
 
   if (runInBackground) {
     return `Background task launched.
 
 Task ID: ${task.id}
 Agent: ${resolved.agent}${categoryNote}
-Status: ${task.status}
+Status: ${task.status}${metadataBlock}
 
 Use \`background_output\` with task_id="${task.id}" to get results.`;
   }
 
-  return `Task ID: ${task.id} (use background_output to get results)`;
+  return `Task ID: ${task.id}${metadataBlock} (use background_output to get results)`;
 }
 
 // Re-export commonly used category utilities
