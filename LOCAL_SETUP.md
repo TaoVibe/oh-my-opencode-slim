@@ -134,16 +134,90 @@ task(
 
 ## Development loop
 
-After code changes:
+After code changes during local iteration:
 
 ```bash
-bun run build
+bun run build:fast
 bun run typecheck
 bun run check:ci
 bun test
 ```
 
+Before pushing or publishing, also run a full build:
+
+```bash
+bun run build
+```
+
 Then restart OpenCode and re-run the smoke tests.
+
+Recommended fast validation for routing/session changes:
+
+```bash
+bun test src/background/background-manager.test.ts src/utils/internal-initiator.test.ts src/hooks/chat-headers.test.ts src/hooks/phase-reminder/index.test.ts
+bun run build:fast
+```
+
+## Troubleshooting
+
+### Background review/research agent fails with `Empty response from provider`
+
+If `momus`, `oracle`, or another delegated agent appears to fail immediately while a later fallback model still seems to run, check the fork version first.
+
+This fork now includes a fix for a background-task startup race:
+
+- `session.status=idle` events are ignored while startup/fallback is still in progress
+- successful fallback attempts complete directly from extracted prompt output
+- internal task notifications use an invisible sentinel instead of a visible HTML comment marker
+
+If you still see the old behavior:
+
+1. rebuild the fork with `bun run build:fast`
+2. fully restart the OpenCode app/session (`qde` or `qdw`)
+3. re-run the delegated review/research task in a fresh session
+
+### `<!-- SLIM_INTERNAL_INITIATOR -->` appears in the chat transcript
+
+That means OpenCode is still running an older build of the fork.
+
+Fix:
+
+```bash
+cd ~/.config/opencode/oh-my-opencode-slim-fork
+bun run build:fast
+```
+
+Then restart OpenCode. The current fork uses an invisible marker, so the raw comment should no longer render in the UI.
+
+### qde vs qdw routing model confusion
+
+Both `qde` and `qdw` use the same local fork plugin. The difference is only the active profile/model stack:
+
+- `qde` → `oh-my-opencode-slim.glm.jsonc`
+- `qdw` → `oh-my-opencode-slim.free.jsonc`
+
+Primary model routing comes from the active profile's `agents.<name>.model`.
+Fallback chains (`fallback.chains.<name>`) are only used after the primary attempt fails/times out/returns empty.
+
+### qde/qdw show default OpenCode behavior even though `qds` shows the fork
+
+If `qds` says the local fork is active but the app behaves like plain OpenCode (missing orchestrator/custom agents/custom prompts), check whether the fork dependencies are installed:
+
+```bash
+cd ~/.config/opencode/oh-my-opencode-slim-fork
+bun install
+bun run build:fast
+```
+
+Then fully restart the `qde` or `qdw` session.
+
+Symptom pattern:
+
+- `qds` shows local fork + preset correctly
+- but runtime behavior looks like stock OpenCode
+- and the fork log does not show fresh `[plugin] initialized` entries
+
+In practice this usually means the local `file://` plugin path is correct, but the fork's dependencies were missing (`node_modules/` absent), so the plugin could not initialize at runtime.
 
 ## Current branch
 

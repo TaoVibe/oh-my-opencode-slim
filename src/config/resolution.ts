@@ -9,15 +9,15 @@
  * Used by both background_task and delegate_task tools.
  */
 
-import type { AgentName } from './constants';
 import {
   CATEGORY_TO_AGENT,
+  type Category,
+  getCategoryRoutingHint,
+  getValidCategoriesString,
   isValidCategory,
   resolveCategory,
-  getValidCategoriesString,
-  getCategoryRoutingHint,
-  type Category,
 } from './categories';
+import type { AgentName } from './constants';
 
 /**
  * Result of resolving an agent request
@@ -51,7 +51,6 @@ export function resolveRequestedAgent(args: {
   category?: string | null;
   subagent_type?: string | null;
 }): ResolvedAgent | ResolutionError {
-
   const validCategories = getValidCategoriesString();
 
   // Category takes precedence if provided
@@ -123,9 +122,8 @@ export function formatTaskLaunchMessage(
   resolved: ResolvedAgent,
   runInBackground: boolean,
 ): string {
-  const categoryNote = resolved.via === 'category'
-    ? ` (via category: ${resolved.category})`
-    : '';
+  const categoryNote =
+    resolved.via === 'category' ? ` (via category: ${resolved.category})` : '';
 
   if (runInBackground) {
     return `Background task launched.

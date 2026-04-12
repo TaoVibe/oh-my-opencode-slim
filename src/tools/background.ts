@@ -5,17 +5,14 @@ import {
 } from '@opencode-ai/plugin';
 import type { BackgroundTaskManager } from '../background';
 import type { PluginConfig } from '../config';
-import {
-  ALL_AGENT_NAMES,
-  SUBAGENT_NAMES,
-} from '../config';
-import type { MultiplexerConfig } from '../config/schema';
+import { ALL_AGENT_NAMES } from '../config';
 import {
   getCategoryRoutingHint,
   getValidCategoriesString,
   isValidCategory,
   resolveCategory,
 } from '../config/categories';
+import type { MultiplexerConfig } from '../config/schema';
 
 const z = tool.schema;
 
@@ -55,10 +52,7 @@ You can specify either:
         .string()
         .describe('Short description of the task (5-10 words)'),
       prompt: z.string().describe('The task prompt for the agent'),
-      agent: z
-        .string()
-        .optional()
-        .describe(`Agent to use: ${agentNames}`),
+      agent: z.string().optional().describe(`Agent to use: ${agentNames}`),
       category: z
         .string()
         .optional()

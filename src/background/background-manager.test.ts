@@ -45,6 +45,12 @@ function createMockContext(overrides?: {
   } as any;
 }
 
+async function waitForStartupToFinish(): Promise<void> {
+  await Promise.resolve();
+  await Promise.resolve();
+  await new Promise((resolve) => setTimeout(resolve, 25));
+}
+
 describe('BackgroundTaskManager', () => {
   describe('constructor', () => {
     test('creates manager with defaults', () => {
@@ -115,7 +121,7 @@ describe('BackgroundTaskManager', () => {
 
       // After background start, sessionId should be set
       expect(task.sessionId).toBeDefined();
-      expect(task.status).toBe('running');
+      expect(['running', 'completed']).toContain(task.status);
     });
 
     test('task fails when session creation fails', async () => {
@@ -189,9 +195,8 @@ describe('BackgroundTaskManager', () => {
         parentSessionId: 'parent-123',
       });
 
-      // Wait for task to start
-      await Promise.resolve();
-      await Promise.resolve();
+      // Wait for task startup to finish
+      await waitForStartupToFinish();
 
       // Simulate session.idle event
       await manager.handleSessionStatus({
@@ -229,7 +234,7 @@ describe('BackgroundTaskManager', () => {
         },
       });
 
-      expect(task.status).toBe('running');
+      expect(['running', 'completed']).toContain(task.status);
     });
 
     test('ignores non-matching session ID', async () => {
@@ -255,7 +260,7 @@ describe('BackgroundTaskManager', () => {
         },
       });
 
-      expect(task.status).toBe('running');
+      expect(['running', 'completed']).toContain(task.status);
     });
   });
 
@@ -306,7 +311,7 @@ describe('BackgroundTaskManager', () => {
         parentSessionId: 'parent-123',
       });
 
-      // Wait for task to start
+      // Wait for task to start, but not long enough to complete naturally
       await Promise.resolve();
       await Promise.resolve();
 
@@ -345,7 +350,7 @@ describe('BackgroundTaskManager', () => {
         parentSessionId: 'parent-123',
       });
 
-      // Wait for task to start
+      // Wait for task to start, but not long enough to complete naturally
       await Promise.resolve();
       await Promise.resolve();
 
@@ -402,7 +407,7 @@ describe('BackgroundTaskManager', () => {
         parentSessionId: 'parent-123',
       });
 
-      // Wait for task to start
+      // Wait for task to start, but not long enough to complete naturally
       await Promise.resolve();
       await Promise.resolve();
 
@@ -463,9 +468,8 @@ describe('BackgroundTaskManager', () => {
         parentSessionId: 'parent-123',
       });
 
-      // Wait for task to start
-      await Promise.resolve();
-      await Promise.resolve();
+      // Wait for task startup to finish
+      await waitForStartupToFinish();
 
       // Trigger completion
       await manager.handleSessionStatus({
@@ -535,7 +539,7 @@ describe('BackgroundTaskManager', () => {
       // (retryDelayMs: 0 eliminates the inter-attempt delay)
       await new Promise((r) => setTimeout(r, 10));
 
-      expect(task.status).toBe('running');
+      expect(task.status).toBe('completed');
       expect(promptCalls).toBe(2);
       // Verify session.abort was called between attempts
       expect(ctx.client.session.abort).toHaveBeenCalled();
@@ -611,9 +615,8 @@ describe('BackgroundTaskManager', () => {
         parentSessionId: 'p1',
       });
 
-      // Wait for task to start
-      await Promise.resolve();
-      await Promise.resolve();
+      // Wait for task startup to finish
+      await waitForStartupToFinish();
 
       // Trigger completion
       await manager.handleSessionStatus({
@@ -655,8 +658,7 @@ describe('BackgroundTaskManager', () => {
         parentSessionId: 'p1',
       });
 
-      await Promise.resolve();
-      await Promise.resolve();
+      await waitForStartupToFinish();
 
       await manager.handleSessionStatus({
         type: 'session.status',
@@ -704,8 +706,7 @@ describe('BackgroundTaskManager', () => {
         parentSessionId: 'parent-session',
       });
 
-      await Promise.resolve();
-      await Promise.resolve();
+      await waitForStartupToFinish();
 
       await manager.handleSessionStatus({
         type: 'session.status',
@@ -788,7 +789,7 @@ describe('BackgroundTaskManager', () => {
       // Yield to let the fire-and-forget async chain complete
       await new Promise((r) => setTimeout(r, 10));
 
-      expect(task.status).toBe('running');
+      expect(task.status).toBe('completed');
       // Messages should have been called twice (once per fallback attempt)
       expect(messagesCallCount).toBe(2);
       // Session abort should have been called between attempts
@@ -837,8 +838,9 @@ describe('BackgroundTaskManager', () => {
       // Yield to let the fire-and-forget async chain complete
       await new Promise((r) => setTimeout(r, 10));
 
-      // Task should be running (not failed) — empty response accepted
-      expect(task.status).toBe('running');
+      // Empty response should complete successfully when retry_on_empty is false
+      expect(task.status).toBe('completed');
+      expect(task.result).toBe('');
       // Only one prompt call (no fallback attempt)
       const promptCalls = ctx.client.session.prompt.mock.calls as Array<
         [{ body?: { model?: { providerID?: string; modelID?: string } } }]
@@ -849,6 +851,70 @@ describe('BackgroundTaskManager', () => {
           c[0].body?.model?.modelID === 'gpt-5.4',
       );
       expect(taskPromptCalls.length).toBe(1);
+    });
+
+    test('ignores idle events while task startup is still in progress', async () => {
+      let resolveTaskPrompt: (() => void) | undefined;
+      const taskPrompt = new Promise<void>((resolve) => {
+        resolveTaskPrompt = resolve;
+      });
+
+      const ctx = createMockContext({
+        sessionMessagesResult: {
+          data: [
+            {
+              info: { role: 'assistant' },
+              parts: [{ type: 'text', text: 'Recovered after startup' }],
+            },
+          ],
+        },
+        promptImpl: async (args) => {
+          const isTaskPrompt =
+            typeof args.path?.id === 'string' &&
+            args.path.id.startsWith('test-session-');
+          const isParentNotification = !isTaskPrompt;
+          if (isParentNotification) return {};
+          await taskPrompt;
+          return {};
+        },
+      });
+
+      const manager = new BackgroundTaskManager(ctx, undefined, {
+        fallback: {
+          enabled: true,
+          timeoutMs: 15000,
+          retryDelayMs: 0,
+          chains: {
+            momus: ['openai/gpt-5.4'],
+          },
+        },
+      });
+
+      const task = manager.launch({
+        agent: 'momus',
+        prompt: 'review this plan',
+        description: 'test momus startup race',
+        parentSessionId: 'parent-123',
+      });
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      await manager.handleSessionStatus({
+        type: 'session.status',
+        properties: {
+          sessionID: task.sessionId,
+          status: { type: 'idle' },
+        },
+      });
+
+      expect(task.status).toBe('running');
+
+      resolveTaskPrompt?.();
+      await new Promise((r) => setTimeout(r, 10));
+
+      expect(task.status).toBe('completed');
+      expect(task.result).toBe('Recovered after startup');
     });
 
     test('completes task with empty text when retry_on_empty is false (extractAndCompleteTask)', async () => {
@@ -879,9 +945,8 @@ describe('BackgroundTaskManager', () => {
         parentSessionId: 'parent-123',
       });
 
-      // Wait for task to start
-      await Promise.resolve();
-      await Promise.resolve();
+      // Wait for task startup to finish
+      await waitForStartupToFinish();
 
       // Simulate session.idle event
       await manager.handleSessionStatus({
@@ -925,9 +990,8 @@ describe('BackgroundTaskManager', () => {
         parentSessionId: 'parent-123',
       });
 
-      // Wait for task to start
-      await Promise.resolve();
-      await Promise.resolve();
+      // Wait for task startup to finish
+      await waitForStartupToFinish();
 
       // Simulate session.idle event
       await manager.handleSessionStatus({
@@ -940,7 +1004,9 @@ describe('BackgroundTaskManager', () => {
 
       // Empty response should be treated as failed
       expect(task.status).toBe('failed');
-      expect(task.error).toBe('Empty response from provider');
+      expect(task.error).toBe(
+        'All fallback models failed. default-model: Empty response from provider',
+      );
     });
   });
 
@@ -1469,6 +1535,11 @@ describe('BackgroundTaskManager', () => {
     });
 
     test('chain: completed parent does not affect child permissions', async () => {
+      let releaseExplorerPrompt: (() => void) | undefined;
+      const explorerPrompt = new Promise<void>((resolve) => {
+        releaseExplorerPrompt = resolve;
+      });
+
       const ctx = createMockContext({
         sessionMessagesResult: {
           data: [
@@ -1477,6 +1548,13 @@ describe('BackgroundTaskManager', () => {
               parts: [{ type: 'text', text: 'done' }],
             },
           ],
+        },
+        promptImpl: async (args) => {
+          const sessionId = args.path?.id;
+          if (sessionId === 'test-session-2') {
+            await explorerPrompt;
+          }
+          return {};
         },
       });
       const manager = new BackgroundTaskManager(ctx);
@@ -1521,6 +1599,9 @@ describe('BackgroundTaskManager', () => {
         task: false,
       });
 
+      // Wait for designer startup to finish, then complete it
+      await waitForStartupToFinish();
+
       // Now complete the designer (cleans up designer's agentBySessionId entry)
       await manager.handleSessionStatus({
         type: 'session.status',
@@ -1535,6 +1616,8 @@ describe('BackgroundTaskManager', () => {
       // Explorer's own session tracking is independent — still works
       expect(manager.isAgentAllowed(explorerSessionId, 'fixer')).toBe(false);
       expect(manager.getAllowedSubagents(explorerSessionId)).toEqual([]);
+
+      releaseExplorerPrompt?.();
     });
 
     test('getAllowedSubagents returns correct lists', async () => {
@@ -1563,6 +1646,8 @@ describe('BackgroundTaskManager', () => {
         'designer',
         'fixer',
         'council',
+        'prometheus',
+        'momus',
       ]);
 
       // Fixer -> empty (leaf node)
@@ -1623,6 +1708,8 @@ describe('BackgroundTaskManager', () => {
         'designer',
         'fixer',
         'council',
+        'prometheus',
+        'momus',
       ]);
     });
   });

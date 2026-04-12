@@ -6,13 +6,13 @@ import {
 import type { BackgroundTaskManager } from '../background';
 import type { PluginConfig } from '../config';
 import { ALL_AGENT_NAMES } from '../config';
-import type { MultiplexerConfig } from '../config/schema';
 import {
-  getValidCategoriesString,
-  resolveRequestedAgent,
   checkAgentAllowed,
   formatTaskLaunchMessage,
+  getValidCategoriesString,
+  resolveRequestedAgent,
 } from '../config/resolution';
+import type { MultiplexerConfig } from '../config/schema';
 
 const z = tool.schema;
 
@@ -51,13 +51,18 @@ You can specify either:
       category: z
         .string()
         .optional()
-        .describe(`Task category (alternative to subagent_type): ${validCategories}`),
+        .describe(
+          `Task category (alternative to subagent_type): ${validCategories}`,
+        ),
       run_in_background: z
         .boolean()
         .optional()
         .default(true)
         .describe('Run as background task (default: true)'),
-      session_id: z.string().optional().describe('Existing session to continue'),
+      session_id: z
+        .string()
+        .optional()
+        .describe('Existing session to continue'),
       load_skills: z
         .array(z.string())
         .optional()

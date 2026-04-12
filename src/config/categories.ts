@@ -73,7 +73,8 @@ export const CATEGORY_DESCRIPTIONS: Record<Category, string> = {
   exploration: 'Codebase search - discovers files, patterns, structure',
   research: 'Documentation lookup - finds API docs, examples, usage',
   execution: 'Bounded implementation - well-scoped changes, tests',
-  architecture: 'Strategic advisor - architectural decisions, high-stakes choices',
+  architecture:
+    'Strategic advisor - architectural decisions, high-stakes choices',
   visual: 'UI/UX specialist - visual polish, responsive layouts',
 };
 

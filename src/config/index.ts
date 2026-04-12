@@ -1,7 +1,7 @@
+export * from './categories';
 export * from './constants';
 export * from './council-schema';
 export { loadAgentPrompt, loadPluginConfig } from './loader';
-export * from './schema';
-export * from './categories';
 export * from './resolution';
+export * from './schema';
 export { getAgentOverride } from './utils';

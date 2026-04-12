@@ -16,7 +16,11 @@ export const SUBAGENT_NAMES = [
 ] as const;
 
 // Custom agents added by user (prometheus, momus, hephaestus)
-export const CUSTOM_AGENT_NAMES = ['prometheus', 'momus', 'hephaestus'] as const;
+export const CUSTOM_AGENT_NAMES = [
+  'prometheus',
+  'momus',
+  'hephaestus',
+] as const;
 
 export const ORCHESTRATOR_NAME = 'orchestrator' as const;
 

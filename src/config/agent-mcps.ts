@@ -17,6 +17,9 @@ export const DEFAULT_AGENT_MCPS: Record<AgentName, string[]> = {
   council: [],
   councillor: [],
   'council-master': [],
+  prometheus: [],
+  momus: [],
+  hephaestus: [],
 };
 
 /**

@@ -79,6 +79,7 @@ function generateTaskId(): string {
 export class BackgroundTaskManager {
   private tasks = new Map<string, BackgroundTask>();
   private tasksBySessionId = new Map<string, string>();
+  private sessionsStarting = new Set<string>();
   // Track which agent type owns each session for delegation permission checks
   private agentBySessionId = new Map<string, string>();
   private depthTracker: SubagentDepthTracker;
@@ -319,6 +320,7 @@ export class BackgroundTaskManager {
 
       task.sessionId = session.data.id;
       this.tasksBySessionId.set(session.data.id, task.id);
+      this.sessionsStarting.add(session.data.id);
       // Track the agent type for this session for delegation checks
       this.agentBySessionId.set(session.data.id, task.agent);
       task.status = 'running';
@@ -401,6 +403,7 @@ export class BackgroundTaskManager {
             throw new Error('Empty response from provider');
           }
 
+          this.completeTask(task, 'completed', extraction.text);
           succeeded = true;
           break;
         } catch (error) {
@@ -432,15 +435,14 @@ export class BackgroundTaskManager {
       if (!succeeded) {
         throw new Error(`All fallback models failed. ${errors.join(' | ')}`);
       }
-
-      log(`[background-manager] task started: ${task.id}`, {
-        sessionId: session.data.id,
-      });
     } catch (error) {
       const errorMessage =
         error instanceof Error ? error.message : String(error);
       this.completeTask(task, 'failed', errorMessage);
     } finally {
+      if (task.sessionId) {
+        this.sessionsStarting.delete(task.sessionId);
+      }
       this.activeStarts--;
       this.processQueue();
     }
@@ -464,6 +466,10 @@ export class BackgroundTaskManager {
 
     const task = this.tasks.get(taskId);
     if (!task || task.status !== 'running') return;
+
+    if (this.sessionsStarting.has(sessionId)) {
+      return;
+    }
 
     // Check if session is idle (completed)
     if (event.properties?.status?.type === 'idle') {
@@ -745,6 +751,7 @@ export class BackgroundTaskManager {
    */
   cleanup(): void {
     this.startQueue = [];
+    this.sessionsStarting.clear();
     this.completionResolvers.clear();
     this.tasks.clear();
     this.tasksBySessionId.clear();
