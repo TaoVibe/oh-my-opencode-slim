@@ -5,7 +5,41 @@ import type {
   ToolPolicyEvaluation,
 } from './types';
 
+const LOCALHOST_PATTERN = /(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])/;
+
+const REPO_FRONTEND_INSTALL_PATTERN =
+  /(?:^|&&|;)\s*cd\s+(?:\.\/)?(?:frontend|src\/clipper-frontend)\s*&&\s*npm\s+(?:install|ci)\b|\bnpm\s+--prefix\s+(?:\.\/)?(?:frontend|src\/clipper-frontend)\s+(?:install|ci)\b/;
+
+const SAFE_ENV_COMMAND_PATTERN =
+  /^\s*env\s+(?:\S+=\S+\s+)+(?:uv|pytest|ruff|pyright|npm|bun)\b(?!.*(?:&&|;|\|\|)).*$/;
+
+const TAR_LIST_PATTERN = /\btar\s+(?:-[a-zA-Z]*t[a-zA-Z]*\b|t[a-zA-Z]*\b)/;
+
+const SQLITE_WRITE_PATTERN =
+  /\bsqlite3\s.*\b(?:drop|delete|update|insert|alter|replace|truncate)\b/i;
+
+const ALLOW_BASH_PATTERNS: Array<[RegExp, string]> = [
+  [
+    /\bpip3?\s+install\b.*(?:-r\s|--requirement|-e\s+\.|--editable\b)/,
+    'pip-install-safe',
+  ],
+  [
+    /\buv\s+pip\s+install\b.*(?:-r\s|--requirement|-e\s+\.|--editable\b)/,
+    'uv-pip-install-safe',
+  ],
+  [/\bunzip\s+-l\b/, 'unzip-list'],
+  [TAR_LIST_PATTERN, 'tar-list'],
+  [SAFE_ENV_COMMAND_PATTERN, 'env-safe-command'],
+  [REPO_FRONTEND_INSTALL_PATTERN, 'repo-frontend-install'],
+  [/\b(?:py-spy|memray|scalene)\b/, 'profiler'],
+];
+
 const DENY_BASH_PATTERNS: Array<[RegExp, string, string]> = [
+  [
+    /(?:^|\s)--no-verify(?:\s|$)/,
+    'hook-bypass',
+    'Bypassing hooks disables required safety checks.',
+  ],
   [
     /\bgit\s+push\s+.*(?:--force\b|-f\b)/,
     'git-force-push',
@@ -22,6 +56,11 @@ const DENY_BASH_PATTERNS: Array<[RegExp, string, string]> = [
     'Force clean permanently deletes untracked files.',
   ],
   [
+    /\bgit\s+branch\s+-D\s+(?:main|master)\b/,
+    'git-delete-main-branch',
+    'Force-deleting the main branch is unsafe.',
+  ],
+  [
     /\bgit\s+(?:checkout|restore)\s+\.\s*$/,
     'git-discard-all',
     'Discarding the whole working tree is destructive.',
@@ -33,6 +72,11 @@ const DENY_BASH_PATTERNS: Array<[RegExp, string, string]> = [
   ],
   [/\bgit\s+stash\b/, 'git-stash', 'Stashing disrupts shared coordination.'],
   [
+    /\bgit\s+rm\s+.*--cached.*(?:\.(?:claude|github|semgrep|semgrep-ci|husky|vscode|circleci)\b|Makefile\b|CLAUDE\.md\b|\.gitignore\b)/,
+    'git-rm-cached-config',
+    'Removing tracked config files from the index is unsafe.',
+  ],
+  [
     /\brm\s+-[a-zA-Z]*r[a-zA-Z]*f\b|\brm\s+-[a-zA-Z]*f[a-zA-Z]*r\b|\brm\s+-rf\b/,
     'rm-rf',
     'Recursive forced removal is destructive.',
@@ -43,41 +87,26 @@ const DENY_BASH_PATTERNS: Array<[RegExp, string, string]> = [
     'Dangerous chmod mode detected.',
   ],
   [
+    SQLITE_WRITE_PATTERN,
+    'sqlite-destructive-write',
+    'Destructive sqlite3 writes should be reviewed explicitly.',
+  ],
+  [
     /\b(?:curl|wget)\s.*\|\s*(?:sh|bash|zsh|python|node|ruby|perl)\b/,
     'pipe-shell',
     'Piping downloaded content into a shell is unsafe.',
-  ],
-  [
-    /\bcurl\s.*(?:-X\s*(?:POST|PUT|PATCH|DELETE)|--data|-d\s|--upload|-T\s|-F\s|--form)(?!.*(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]))/,
-    'curl-remote-write',
-    'Remote curl write/upload may mutate or exfiltrate data.',
   ],
   [
     /\bcurl\s.*(?:-H.*[Aa]uthoriz|-H.*[Bb]earer|-H.*[Tt]oken|--header.*[Aa]uthoriz)(?!.*(?:localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\]))/,
     'curl-auth-remote',
     'Remote curl with auth headers may exfiltrate credentials.',
   ],
-  [
-    /\bwget\s+(?!.*(?:localhost|127\.0\.0\.1))/,
-    'wget-remote',
-    'Remote wget downloads arbitrary files.',
-  ],
-  [
-    /\btar\s.*-[a-zA-Z]*x\b|\btar\s+x\b/,
-    'tar-extract',
-    'Archive extraction can overwrite files.',
-  ],
-  [
-    /\bunzip\s+(?!-l\b)/,
-    'unzip-extract',
-    'Archive extraction can overwrite files.',
-  ],
   [/^\s*eval\s/, 'eval', 'eval executes arbitrary code.'],
   [/^\s*exec\s/, 'exec', 'exec replaces the current process.'],
   [
     /^\s*env\s+\S+=/,
     'env-inline-command',
-    'Inline env command execution is unsafe in this policy layer.',
+    'Inline env command execution is unsafe unless it wraps a known-safe tool.',
   ],
   [/^\s*command\s/, 'command-bypass', 'command <x> bypasses tool policy.'],
   [
@@ -98,6 +127,27 @@ const ASK_BASH_PATTERNS: Array<[RegExp, string, string]> = [
     /\bgh\s+repo\s+(?:create|delete|fork|rename)\b/,
     'gh-repo-write',
     'GitHub repository mutation affects shared state.',
+  ],
+  [
+    /\bdocker\s+compose\s+down\b.*\s-v(?:\s|$)|\bdocker-compose\s+down\b.*\s-v(?:\s|$)/,
+    'docker-compose-down-volume',
+    'docker compose down -v removes local volumes and state.',
+  ],
+  [
+    /\bcurl\s.*(?:-X\s*(?:POST|PUT|PATCH|DELETE)|--data|-d\s|--upload|-T\s|-F\s|--form)/,
+    'curl-remote-write',
+    'Remote curl write/upload may mutate or exfiltrate data.',
+  ],
+  [/\bwget\s+/, 'wget-remote', 'Remote wget downloads arbitrary files.'],
+  [
+    /\btar\s.*(?:-[a-zA-Z]*x[a-zA-Z]*\b|\bx[a-zA-Z]*\b)/,
+    'tar-extract',
+    'Archive extraction can overwrite files.',
+  ],
+  [
+    /\bunzip\s+(?!-l\b)/,
+    'unzip-extract',
+    'Archive extraction can overwrite files.',
   ],
   [
     /\bpip3?\s+install\b/,
@@ -159,14 +209,30 @@ function extractCommand(
 }
 
 function classifyBashCommand(command: string): ToolPolicyEvaluation {
+  if (SAFE_ENV_COMMAND_PATTERN.test(command)) {
+    return { decision: 'allow', category: 'env-safe-command' };
+  }
+
   for (const [pattern, category, reason] of DENY_BASH_PATTERNS) {
     if (pattern.test(command)) {
       return { decision: 'deny', category, reason };
     }
   }
 
+  for (const [pattern, category] of ALLOW_BASH_PATTERNS) {
+    if (pattern.test(command)) {
+      return { decision: 'allow', category };
+    }
+  }
+
   for (const [pattern, category, reason] of ASK_BASH_PATTERNS) {
     if (pattern.test(command)) {
+      if (category === 'curl-remote-write' && LOCALHOST_PATTERN.test(command)) {
+        return { decision: 'allow', category: 'curl-local-write' };
+      }
+      if (category === 'wget-remote' && LOCALHOST_PATTERN.test(command)) {
+        return { decision: 'allow', category: 'wget-local' };
+      }
       return { decision: 'ask', category, reason };
     }
   }

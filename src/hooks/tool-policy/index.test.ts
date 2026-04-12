@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { classifyToolExecution } from './classify';
 import { createToolPolicyHook } from './index';
 
 function makeCtx() {
@@ -8,6 +9,169 @@ function makeCtx() {
 }
 
 describe('createToolPolicyHook', () => {
+  test('matches Claude parity for dangerous bypass and destructive commands', () => {
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'git commit --no-verify -m test' },
+      }),
+    ).toEqual({
+      decision: 'deny',
+      category: 'hook-bypass',
+      reason: 'Bypassing hooks disables required safety checks.',
+    });
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'git branch -D main' },
+      }).decision,
+    ).toBe('deny');
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: {
+          command: 'git rm --cached .claude/settings.json',
+        },
+      }).decision,
+    ).toBe('deny');
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'sqlite3 app.db "DELETE FROM users"' },
+      }).decision,
+    ).toBe('deny');
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'git stash push -m temp' },
+      }).decision,
+    ).toBe('deny');
+  });
+
+  test('allows constrained safe dev commands', () => {
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'pip install -r requirements.txt' },
+      }).decision,
+    ).toBe('allow');
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'uv pip install -e .' },
+      }).decision,
+    ).toBe('allow');
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'cd frontend && npm install' },
+      }),
+    ).toEqual({ decision: 'allow', category: 'repo-frontend-install' });
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'tar -tf fixture.tar' },
+      }),
+    ).toEqual({ decision: 'allow', category: 'tar-list' });
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'unzip -l fixture.zip' },
+      }),
+    ).toEqual({ decision: 'allow', category: 'unzip-list' });
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'env FOO=bar uv run pytest tests/unit' },
+      }),
+    ).toEqual({ decision: 'allow', category: 'env-safe-command' });
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'env FOO=bar python -c "print(1)"' },
+      }).decision,
+    ).toBe('deny');
+  });
+
+  test('asks for shared-state or risky but legitimate commands', () => {
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'git push origin main' },
+      }).decision,
+    ).toBe('ask');
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'gh pr review 123 --approve' },
+      }).decision,
+    ).toBe('ask');
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'docker compose down -v' },
+      }).decision,
+    ).toBe('ask');
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'npm install left-pad' },
+      }).decision,
+    ).toBe('ask');
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'curl -X POST https://example.com/webhook -d hi=1' },
+      }).decision,
+    ).toBe('ask');
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'wget https://example.com/file.txt' },
+      }).decision,
+    ).toBe('ask');
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'tar -xf archive.tar -C /tmp/out' },
+      }).decision,
+    ).toBe('ask');
+  });
+
+  test('allows localhost writes and profiler commands', () => {
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: {
+          command: 'curl -X POST http://localhost:8000/reload -d force=1',
+        },
+      }),
+    ).toEqual({ decision: 'allow', category: 'curl-local-write' });
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'py-spy top --pid 1234' },
+      }),
+    ).toEqual({ decision: 'allow', category: 'profiler' });
+  });
+
   test('denies destructive bash execution before tool run', async () => {
     const hook = createToolPolicyHook(makeCtx());
 
