@@ -8,11 +8,11 @@ import type { PluginConfig } from '../config';
 import { ALL_AGENT_NAMES } from '../config';
 import type { MultiplexerConfig } from '../config/schema';
 import {
-  getCategoryRoutingHint,
   getValidCategoriesString,
-  isValidCategory,
-  resolveCategory,
-} from '../config/categories';
+  resolveRequestedAgent,
+  checkAgentAllowed,
+  formatTaskLaunchMessage,
+} from '../config/resolution';
 
 const z = tool.schema;
 
@@ -78,47 +78,31 @@ You can specify either:
       const description = String(args.description);
       const runInBackground = args.run_in_background ?? true;
 
-      let resolvedAgent: string;
+      // Use shared resolution helper
+      const resolved = resolveRequestedAgent({
+        category: args.category,
+        subagent_type: args.subagent_type,
+      });
 
-      if (args.category !== undefined && args.category !== null) {
-        const category = String(args.category);
-        if (!isValidCategory(category)) {
-          return `Invalid category "${category}". Valid categories: ${validCategories}`;
-        }
-        const agent = resolveCategory(category);
-        if (!agent) {
-          return `Category "${category}" has no default agent`;
-        }
-        resolvedAgent = agent;
-      } else if (args.subagent_type !== undefined && args.subagent_type !== null) {
-        resolvedAgent = String(args.subagent_type);
-      } else {
-        return `Must provide either subagent_type or category. Category routing: ${getCategoryRoutingHint()}`;
+      if ('error' in resolved) {
+        return resolved.message;
       }
 
-      if (!manager.isAgentAllowed(parentSessionId, resolvedAgent)) {
-        const allowed = manager.getAllowedSubagents(parentSessionId);
-        return `Agent '${resolvedAgent}' is not allowed. Allowed agents: ${allowed.join(', ')}`;
+      // Check agent allowed
+      const allowed = manager.getAllowedSubagents(parentSessionId);
+      const allowedError = checkAgentAllowed(resolved.agent, allowed);
+      if (allowedError) {
+        return allowedError.message;
       }
 
       const task = manager.launch({
-        agent: resolvedAgent,
+        agent: resolved.agent,
         prompt,
         description,
         parentSessionId,
       });
 
-      if (runInBackground) {
-        return `Background task launched.
-
-Task ID: ${task.id}
-Agent: ${resolvedAgent}${args.category ? ` (via category: ${args.category})` : ''}
-Status: ${task.status}
-
-Use \`background_output\` with task_id="${task.id}" to get results.`;
-      }
-
-      return `Task ID: ${task.id} (use background_output to get results)`;
+      return formatTaskLaunchMessage(task, resolved, runInBackground);
     },
   });
 

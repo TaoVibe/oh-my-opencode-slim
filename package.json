@@ -36,7 +36,10 @@
     "LICENSE"
   ],
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist --target bun --format esm --packages external && bun build src/cli/index.ts --outdir dist/cli --target bun --format esm --packages external && tsc --emitDeclarationOnly && bun run generate-schema",
+    "build": "bun run build:fast && tsc --emitDeclarationOnly && bun run generate-schema",
+    "build:fast": "bun build src/index.ts --outdir dist --target bun --format esm --packages external && bun build src/cli/index.ts --outdir dist/cli --target bun --format esm --packages external",
+    "dev": "bun run build:fast && opencode",
+    "dev:watch": "echo 'TODO: implement watch mode with bun --watch'",
     "prepare": "bun build src/index.ts --outdir dist --target bun --format esm --packages external --external @ast-grep/napi --external @opencode-ai/plugin --external @opencode-ai/sdk",
     "contributors:add": "all-contributors add",
     "contributors:check": "all-contributors check",
@@ -48,7 +51,6 @@
     "format": "biome format . --write",
     "check": "biome check --write .",
     "check:ci": "biome check .",
-    "dev": "bun run build && opencode",
     "prepublishOnly": "bun run build",
     "release:patch": "npm version patch && git push --follow-tags && npm publish",
     "release:minor": "npm version minor && git push --follow-tags && npm publish",
