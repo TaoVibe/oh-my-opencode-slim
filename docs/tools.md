@@ -48,6 +48,10 @@ To opt into real native OpenCode permission prompts for all Bash calls, set:
 }
 ```
 
+Detailed architecture and maintenance guide:
+
+- [Bash Policy Architecture](bash-policy-architecture.md)
+
 ---
 
 ## Background Tasks

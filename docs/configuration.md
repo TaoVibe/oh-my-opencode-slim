@@ -175,3 +175,7 @@ This is intentionally broad:
 - the plugin's native safety policy still blocks known risky commands when needed
 
 Without this flag, ask-class Bash operations fall back to explicit pre-execution blocking instead of silently running.
+
+For the full architecture, classification order, and how to safely add new allow/ask/deny rules in future sessions, see:
+
+- [Bash Policy Architecture](bash-policy-architecture.md)

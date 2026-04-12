@@ -26,6 +26,7 @@
 | [Tools](tools.md) | Background tasks, LSP, code search (`ast_grep`), formatters |
 | [Intent Routing](intent-routing.md) | `deep research`, `deep review`, hidden harness tags, alias tuning |
 | [Configuration](configuration.md) | Config files, Claude hook compatibility, native Bash ask mode, full option reference |
+| [Bash Policy Architecture](bash-policy-architecture.md) | Bash allow/ask/deny model, runtime flow, and how to extend policy safely |
 | [Observability Local Fork Plan](observability-local-fork-plan.md) | Plugin-side runtime status model, tools, toggles, rollout (do first) |
 | [Observability TUI Plan](observability-tui-plan.md) | Core TUI chips/panel, feature flags, cherry-pick strategy (do second) |
 
