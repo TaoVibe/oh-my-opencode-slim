@@ -60,11 +60,34 @@ Launch agents asynchronously and collect results later. This is how the Orchestr
 
 | Tool | Description |
 |------|-------------|
-| `background_task` | Launch an agent in a new session. `sync=true` blocks until complete; `sync=false` returns a task ID immediately |
+| `background_task` | Launch an agent in a new session and immediately show the effective model and compact fallback chain for that launch |
+| `session_agent_model` | Set, inspect, or clear per-agent model overrides for the current parent session only |
 | `background_output` | Fetch the result of a background task by ID |
 | `background_cancel` | Abort a running background task |
+| `observability_status` | Show current runtime task state, effective models, fallback chains, active overrides, and tracked panes |
 
 Background tasks integrate with [Multiplexer Integration](multiplexer-integration.md) — when multiplexer support is enabled, each background task spawns a pane so you can watch it live.
+
+### Session-scoped delegated agent overrides
+
+`session_agent_model` lets you override the model used for future delegated launches from the current parent session only.
+
+Examples:
+
+```text
+session_agent_model(agent="explorer", model="openai/gpt-5.4-mini")
+session_agent_model(agent="explorer", clear=true)
+session_agent_model(clear_all=true)
+session_agent_model()
+```
+
+Behavior:
+
+- overrides are stored in memory only and never mutate profile/template files
+- overrides are scoped to the current parent session only
+- future delegated launches from that session use the override
+- precedence is: session override → runtime fallback chain → profile/default model
+- cleanup happens automatically on `session.deleted`
 
 ---
 

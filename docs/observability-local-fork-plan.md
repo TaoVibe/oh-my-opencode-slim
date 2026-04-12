@@ -1,3 +1,5 @@
+> Status: partially shipped in local fork. `observability_status` and launch-time model/fallback metadata are implemented; the plan remains historical context for broader observability work.
+
 # Local Fork Plan: Runtime Observability for Agents, Subagents, and Shells
 
 ## Goal

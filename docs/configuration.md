@@ -102,7 +102,9 @@ All config files support **JSONC** (JSON with Comments):
 | `tmux.enabled` | boolean | `false` | Enable tmux pane spawning |
 | `tmux.layout` | string | `"main-vertical"` | Layout: `main-vertical`, `main-horizontal`, `tiled`, `even-horizontal`, `even-vertical` |
 | `tmux.main_pane_size` | number | `60` | Main pane size as percentage (20–80) |
+| `disabled_hooks` | string[] | `[]` | Hook IDs to disable globally (for example `claude-code-hooks`) |
 | `disabled_mcps` | string[] | `[]` | MCP server IDs to disable globally |
+| `featureFlags` | object | — | Optional runtime behavior flags such as `orchestratorFollowsSessionModel` and `nativeBashAskAll` |
 | `fallback.enabled` | boolean | `false` | Enable model failover on timeout/error |
 | `fallback.timeoutMs` | number | `15000` | Time before aborting and trying next model |
 | `fallback.retryDelayMs` | number | `500` | Delay between retry attempts |
@@ -179,3 +181,56 @@ Without this flag, ask-class Bash operations fall back to explicit pre-execution
 For the full architecture, classification order, and how to safely add new allow/ask/deny rules in future sessions, see:
 
 - [Bash Policy Architecture](bash-policy-architecture.md)
+
+
+---
+
+## Session-scoped model control
+
+### `featureFlags.orchestratorFollowsSessionModel`
+
+Enable this flag if you want the orchestrator to follow the current session's `/models` selection instead of being pinned to its configured startup model.
+
+```jsonc
+{
+  "featureFlags": {
+    "orchestratorFollowsSessionModel": true
+  }
+}
+```
+
+Behavior:
+
+- default is `false`
+- when enabled, the orchestrator follows the current session model
+- explicit `agent.orchestrator.model` in user config still wins
+- subagents are not affected by this flag
+
+### `session_agent_model` tool
+
+For delegated subagents, use the runtime tool instead of mutating config:
+
+```text
+session_agent_model(agent="explorer", model="openai/gpt-5.4-mini")
+session_agent_model(agent="explorer", clear=true)
+session_agent_model(clear_all=true)
+session_agent_model()
+```
+
+Behavior boundaries:
+
+- applies to future delegated launches from the current parent session only
+- does not mutate profile files, preset files, or template files
+- does not bleed into other sessions
+- cleanup happens automatically when the parent session is deleted
+- precedence is: session override → runtime fallback chain → profile/default model
+
+### Launch-time metadata
+
+`task(...)` and `background_task(...)` launch output now includes compact effective model metadata:
+
+```text
+Model: openai/gpt-5.4-mini | Fallback: opencode-go/minimax-m2.5→opencode-go/minimax-m2.7
+```
+
+Use `observability_status` for the current full runtime view, including active overrides.

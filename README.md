@@ -99,6 +99,12 @@ If you want OpenCode to emit a real native permission prompt for all Bash calls,
 
 Guide: [docs/tools.md](docs/tools.md) · [docs/configuration.md](docs/configuration.md)
 
+This fork also includes runtime operator controls for model visibility and session-scoped overrides:
+
+- `observability_status` — inspect active tasks, effective models, fallback chains, panes, and current session overrides
+- `session_agent_model` — override delegated agent models for the current session only
+- compact launch-time model/fallback metadata on `task(...)` and `background_task(...)`
+
 ### ✅ Verify Your Setup
 
 After installation and authentication, verify all agents are configured and responding:
@@ -167,7 +173,7 @@ Guide: [docs/intent-routing.md](docs/intent-routing.md)
   </tr>
   <tr>
     <td colspan="2">
-      <b>Default Model:</b> <code>openai/gpt-5.4</code>
+      <b>Default Model:</b> <code>openai/gpt-5.4</code> <sub>(or current session model when <code>featureFlags.orchestratorFollowsSessionModel</code> is enabled)</sub>
     </td>
   </tr>
   <tr>

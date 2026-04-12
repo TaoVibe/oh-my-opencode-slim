@@ -8,6 +8,12 @@
     "setDefaultAgent": {
       "type": "boolean"
     },
+    "disabled_hooks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "scoringEngineVersion": {
       "type": "string",
       "enum": [
@@ -648,6 +654,19 @@
         "master",
         "presets"
       ]
+    },
+    "featureFlags": {
+      "type": "object",
+      "properties": {
+        "orchestratorFollowsSessionModel": {
+          "default": false,
+          "type": "boolean"
+        },
+        "nativeBashAskAll": {
+          "default": false,
+          "type": "boolean"
+        }
+      }
     }
   },
   "title": "oh-my-opencode-slim",

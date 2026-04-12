@@ -132,6 +132,25 @@ task(
 )
 ```
 
+
+## Session-model smoke tests
+
+After restart, you can verify both orchestrator and delegated-session behavior:
+
+```text
+observability_status()
+session_agent_model(agent="explorer", model="openai/gpt-5.4-mini")
+task(subagent_type="explorer", prompt="Reply with PASS")
+session_agent_model(clear_all=true)
+```
+
+Expected behavior:
+
+- `observability_status` shows current runtime tasks, effective models, fallback chains, and current session overrides
+- `session_agent_model` affects only future delegated launches from the current parent session
+- profile files remain unchanged
+- clearing overrides restores normal per-profile behavior
+
 ## Development loop
 
 After code changes during local iteration:
