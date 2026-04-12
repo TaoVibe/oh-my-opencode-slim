@@ -174,3 +174,87 @@ describe('fallback.chains merging for foreground agents', () => {
     expect(result).toBe('github-copilot/claude-opus-4.6');
   });
 });
+
+
+describe('orchestrator session model behavior', () => {
+  function resolveStartupModel(opts: {
+    agentName: string;
+    currentModel?: string;
+    chainModels?: string[];
+    userExplicitModel?: boolean;
+  }): string | null {
+    const {
+      agentName,
+      currentModel,
+      chainModels,
+      userExplicitModel = false,
+      orchestratorFollowsSessionModel = false,
+    } = opts;
+
+    if (
+      agentName === 'orchestrator' &&
+      orchestratorFollowsSessionModel &&
+      !userExplicitModel
+    ) {
+      return null;
+    }
+
+    const effectiveArray: Array<{ id: string }> = currentModel
+      ? [{ id: currentModel }]
+      : [];
+    const seen = new Set(effectiveArray.map((m) => m.id));
+    for (const chainModel of chainModels ?? []) {
+      if (!seen.has(chainModel)) {
+        seen.add(chainModel);
+        effectiveArray.push({ id: chainModel });
+      }
+    }
+
+    return effectiveArray[0]?.id ?? null;
+  }
+
+  test('orchestrator startup model is left unset so /models can control the session', () => {
+    const result = resolveStartupModel({
+      agentName: 'orchestrator',
+      currentModel: 'openai/gpt-5.4',
+      chainModels: ['opencode-go/glm-5.1'],
+      orchestratorFollowsSessionModel: true,
+    });
+
+    expect(result).toBeNull();
+  });
+
+
+  test('orchestrator still uses configured startup model when feature flag is disabled', () => {
+    const result = resolveStartupModel({
+      agentName: 'orchestrator',
+      currentModel: 'openai/gpt-5.4',
+      chainModels: ['opencode-go/glm-5.1'],
+      orchestratorFollowsSessionModel: false,
+    });
+
+    expect(result).toBe('openai/gpt-5.4');
+  });
+
+  test('explicit user orchestrator model is preserved', () => {
+    const result = resolveStartupModel({
+      agentName: 'orchestrator',
+      currentModel: 'openai/gpt-5.4',
+      chainModels: ['opencode-go/glm-5.1'],
+      userExplicitModel: true,
+      orchestratorFollowsSessionModel: true,
+    });
+
+    expect(result).toBe('openai/gpt-5.4');
+  });
+
+  test('non-orchestrator agents still resolve to their configured startup model', () => {
+    const result = resolveStartupModel({
+      agentName: 'explorer',
+      currentModel: 'opencode-go/minimax-m2.5',
+      chainModels: ['openai/gpt-5.4-mini'],
+    });
+
+    expect(result).toBe('opencode-go/minimax-m2.5');
+  });
+});

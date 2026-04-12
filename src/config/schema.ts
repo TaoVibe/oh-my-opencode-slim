@@ -229,6 +229,12 @@ export const FailoverConfigSchema = z.object({
 
 export type FailoverConfig = z.infer<typeof FailoverConfigSchema>;
 
+export const FeatureFlagsSchema = z.object({
+  orchestratorFollowsSessionModel: z.boolean().default(false),
+});
+
+export type FeatureFlags = z.infer<typeof FeatureFlagsSchema>;
+
 // Main plugin config
 export const PluginConfigSchema = z.object({
   preset: z.string().optional(),
@@ -251,6 +257,7 @@ export const PluginConfigSchema = z.object({
   todoContinuation: TodoContinuationConfigSchema.optional(),
   fallback: FailoverConfigSchema.optional(),
   council: CouncilConfigSchema.optional(),
+  featureFlags: FeatureFlagsSchema.optional(),
 });
 
 export type PluginConfig = z.infer<typeof PluginConfigSchema>;

@@ -240,6 +240,14 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
           'orchestrator';
       }
 
+      const userExplicitOrchestratorModel =
+        typeof (
+          (opencodeConfig.agent as Record<string, unknown> | undefined)
+            ?.orchestrator as Record<string, unknown> | undefined
+        )?.model === 'string';
+      const orchestratorFollowsSessionModel =
+        config.featureFlags?.orchestratorFollowsSessionModel === true;
+
       // Merge Agent configs — per-agent shallow merge to preserve
       // user-supplied fields (e.g. tools, permission) from opencode.json
       if (!opencodeConfig.agent) {
@@ -263,6 +271,20 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         }
       }
       const configAgent = opencodeConfig.agent as Record<string, unknown>;
+
+      // Option B (feature-flagged): let the orchestrator follow the
+      // session's current TUI model selection (/models) instead of forcing the
+      // plugin/profile default at startup. Keep explicit user opencode.json
+      // agent model overrides intact.
+      if (orchestratorFollowsSessionModel && !userExplicitOrchestratorModel) {
+        const orchestratorEntry = configAgent.orchestrator as
+          | Record<string, unknown>
+          | undefined;
+        if (orchestratorEntry) {
+          delete orchestratorEntry.model;
+          delete orchestratorEntry.variant;
+        }
+      }
 
       // Model resolution for foreground agents: combine _modelArray entries
       // with fallback.chains config, then pick the first model in the
@@ -316,6 +338,13 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       if (Object.keys(effectiveArrays).length > 0) {
         for (const [agentName, modelArray] of Object.entries(effectiveArrays)) {
           if (modelArray.length === 0) continue;
+          if (
+            agentName === 'orchestrator' &&
+            orchestratorFollowsSessionModel &&
+            !userExplicitOrchestratorModel
+          ) {
+            continue;
+          }
 
           // Use the first model in the effective array.
           // Not all providers require entries in opencodeConfig.provider —
