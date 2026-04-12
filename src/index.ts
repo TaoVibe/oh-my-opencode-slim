@@ -10,6 +10,7 @@ import {
   createChatHeadersHook,
   createDelegateTaskRetryHook,
   createFilterAvailableSkillsHook,
+  createIntentRouterHook,
   createJsonErrorRecoveryHook,
   createPhaseReminderHook,
   createPostFileToolNudgeHook,
@@ -150,6 +151,9 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
   // Initialize phase reminder hook for workflow compliance
   const phaseReminderHook = createPhaseReminderHook();
+
+  // Initialize intent router hook for special workflow phrases
+  const intentRouterHook = createIntentRouterHook();
 
   // Initialize available skills filter hook
   const filterAvailableSkillsHook = createFilterAvailableSkillsHook(
@@ -574,6 +578,10 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         }>;
       };
       await phaseReminderHook['experimental.chat.messages.transform'](
+        input,
+        typedOutput,
+      );
+      await intentRouterHook['experimental.chat.messages.transform'](
         input,
         typedOutput,
       );

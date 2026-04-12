@@ -87,6 +87,25 @@ If any agent fails to respond, check your provider authentication and config fil
 
 ---
 
+## 🧠 Intent Routing
+
+The orchestrator has lightweight harness support for special workflow phrases:
+
+- `deep research`
+- `research deeply`
+- `deep review`
+- `thorough review`
+- `review deeply`
+
+These phrases are detected before the request is sent to the model. The plugin injects a hidden routing tag and the orchestrator follows its built-in workflow for that intent.
+
+- **Deep research** → expanded multi-step research, planning when needed, parallel exploration + research, synthesized output
+- **Deep review** → rigorous adversarial review, architecture escalation when needed, explicit `PASS` / `REVISE` / `BLOCK` disposition when appropriate
+
+Guide: [docs/intent-routing.md](docs/intent-routing.md)
+
+---
+
 ## 🏛️ Meet the Pantheon
 
 ### 01. Orchestrator: The Embodiment Of Order

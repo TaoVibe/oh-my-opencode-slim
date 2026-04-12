@@ -24,6 +24,7 @@
 | [Skills](skills.md) | `simplify`, `agent-browser`, `cartography` — skills assignment syntax |
 | [MCPs](mcps.md) | `websearch`, `context7`, `grep_app` — permissions per agent, global disable |
 | [Tools](tools.md) | Background tasks, LSP, code search (`ast_grep`), formatters |
+| [Intent Routing](intent-routing.md) | `deep research`, `deep review`, hidden harness tags, alias tuning |
 | [Configuration](configuration.md) | Config files, prompt overriding, JSONC, full option reference table |
 
 ## 💡 Author's Setup

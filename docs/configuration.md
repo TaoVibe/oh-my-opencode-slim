@@ -43,6 +43,16 @@ When a `preset` is active, the plugin checks `~/.config/opencode/oh-my-opencode-
 
 Both `{agent}.md` and `{agent}_append.md` can coexist — the full replacement takes effect first, then the append. If neither exists, the built-in default prompt is used.
 
+### Built-in intent routing
+
+The orchestrator also supports a small set of built-in phrase triggers such as `deep research` and `deep review`.
+
+- Detection lives in the harness (`src/hooks/intent-router/index.ts`)
+- Workflow meaning lives in the orchestrator prompt (`src/agents/orchestrator.ts`)
+- You can customize the behavior with `orchestrator.md` or `orchestrator_append.md`
+
+See [Intent Routing](intent-routing.md) for the trigger phrases, design, and implementation details.
+
 ---
 
 ## JSONC Format

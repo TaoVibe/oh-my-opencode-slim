@@ -8,6 +8,7 @@ export {
   ForegroundFallbackManager,
   isRateLimitError,
 } from './foreground-fallback';
+export { createIntentRouterHook } from './intent-router';
 export { createJsonErrorRecoveryHook } from './json-error-recovery';
 export { createPhaseReminderHook } from './phase-reminder';
 export { createPostFileToolNudgeHook } from './post-file-tool-nudge';
