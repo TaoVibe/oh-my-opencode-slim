@@ -15,8 +15,7 @@ const UNZIP_EXTRACT_PATTERN = /\bunzip\s+(?!-l\b)/;
 const ENV_PREFIX_PATTERN = /^\s*env\s+(?:\S+=\S+\s+)+/;
 const SAFE_ENV_UV_PATTERN =
   /^uv\s+(?:sync\b|run\s+(?:pytest|ruff|pyright|semgrep|lint-imports)\b)(?!.*(?:&&|;|\|\||\|))/;
-const SAFE_BUNX_BIOME_PATTERN =
-  /^bunx\s+biome\s+(?:check|format|lint)\b(?!.*(?:&&|;|\|\||\|))/;
+const SAFE_BUNX_BIOME_PATTERN = /^bunx\s+biome\b(?!.*(?:&&|;|\|\||\|))/;
 const INLINE_SHELL_PATTERN = /^\s*(?:bash|sh|zsh)\s+-c\b/;
 const INLINE_INTERPRETER_PATTERN = /^\s*(?:python|python3|node|bun)\s+-[ce]\b/;
 

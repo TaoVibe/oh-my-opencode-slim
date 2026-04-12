@@ -145,6 +145,13 @@ describe('createToolPolicyHook', () => {
         },
       }),
     ).toEqual({ decision: 'allow', category: 'bunx-biome' });
+
+    expect(
+      classifyToolExecution({
+        tool: 'bash',
+        args: { command: 'bunx biome --version' },
+      }),
+    ).toEqual({ decision: 'allow', category: 'bunx-biome' });
   });
 
   test('asks for shared-state or risky but legitimate commands', () => {
