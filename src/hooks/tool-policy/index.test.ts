@@ -498,6 +498,91 @@ describe('createToolPolicyHook', () => {
     });
   });
 
+  test('allows git push with explicit authorization key and strips it before execution', async () => {
+    const hook = createToolPolicyHook(makeCtx());
+    const toolArgs: Record<string, unknown> = {
+      command: 'git push origin main',
+      __toolPolicyAuthorization: {
+        scope: 'git-push',
+        sessionID: 's1',
+        expiresAt: Date.now() + 60_000,
+      },
+    };
+    const toolOutput = { metadata: {} as Record<string, unknown> };
+
+    await expect(
+      hook['tool.execute.before'](
+        { tool: 'bash', callID: 'c-auth', sessionID: 's1' },
+        { args: toolArgs },
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(toolArgs.__toolPolicyAuthorization).toBeUndefined();
+
+    await hook['tool.execute.after']({ callID: 'c-auth' }, toolOutput);
+    expect(toolOutput.metadata.toolPolicy).toEqual({
+      decision: 'allow',
+      category: 'user-override:git-push',
+      reason: 'Pushing writes shared remote state.',
+    });
+  });
+
+  test('blocks unrelated ask-class command even with git-push authorization key', async () => {
+    const hook = createToolPolicyHook(makeCtx());
+
+    await expect(
+      hook['tool.execute.before'](
+        { tool: 'bash', callID: 'c-auth', sessionID: 's1' },
+        {
+          args: {
+            command: 'gh pr review 123 --approve',
+            __toolPolicyAuthorization: {
+              scope: 'git-push',
+              sessionID: 's1',
+              expiresAt: Date.now() + 60_000,
+            },
+          },
+        },
+      ),
+    ).rejects.toThrow(/GitHub CLI write operation affects shared state/);
+  });
+
+  test('blocks git push when authorization key is expired or session-mismatched', async () => {
+    const hook = createToolPolicyHook(makeCtx());
+
+    await expect(
+      hook['tool.execute.before'](
+        { tool: 'bash', callID: 'c-expired', sessionID: 's1' },
+        {
+          args: {
+            command: 'git push origin main',
+            __toolPolicyAuthorization: {
+              scope: 'git-push',
+              sessionID: 's1',
+              expiresAt: Date.now() - 1,
+            },
+          },
+        },
+      ),
+    ).rejects.toThrow(/Pushing writes shared remote state/);
+
+    await expect(
+      hook['tool.execute.before'](
+        { tool: 'bash', callID: 'c-mismatch', sessionID: 's1' },
+        {
+          args: {
+            command: 'git push origin main',
+            __toolPolicyAuthorization: {
+              scope: 'git-push',
+              sessionID: 'other-session',
+              expiresAt: Date.now() + 60_000,
+            },
+          },
+        },
+      ),
+    ).rejects.toThrow(/Pushing writes shared remote state/);
+  });
+
   test('does not allow unrelated ask-class command after push request', async () => {
     const hook = createToolPolicyHook(makeCtx());
 

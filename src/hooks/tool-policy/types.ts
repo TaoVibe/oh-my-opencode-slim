@@ -18,3 +18,9 @@ export interface ToolExecutionRequest {
   tool: string;
   args: Record<string, unknown>;
 }
+
+export interface ToolExecutionAuthorization {
+  scope: 'git-push';
+  sessionID?: string;
+  expiresAt?: number;
+}

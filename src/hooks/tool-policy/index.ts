@@ -1,6 +1,10 @@
 import type { PluginInput } from '@opencode-ai/plugin';
 import { classifyPermissionRequest, classifyToolExecution } from './classify';
-import type { ToolPermissionRequest, ToolPolicyEvaluation } from './types';
+import type {
+  ToolExecutionAuthorization,
+  ToolPermissionRequest,
+  ToolPolicyEvaluation,
+} from './types';
 
 interface ToolPolicyMetadata {
   toolPolicy?: ToolPolicyEvaluation;
@@ -24,6 +28,7 @@ interface ApprovedIntent {
 }
 
 const OVERRIDE_TTL_MS = 5 * 60 * 1000;
+const AUTHORIZATION_ARG_KEY = '__toolPolicyAuthorization';
 const EXPLICIT_OVERRIDE_PATTERN =
   /\b(proceed|override|go ahead|run it|do it|push it|proceed anyway|override it)\b/i;
 const NATURAL_RETRY_PATTERN =
@@ -101,6 +106,66 @@ function isExplicitOverrideIntent(text: string): boolean {
   return (
     EXPLICIT_OVERRIDE_PATTERN.test(text) || NATURAL_RETRY_PATTERN.test(text)
   );
+}
+
+function getAuthorizationRecord(
+  value: unknown,
+): ToolExecutionAuthorization | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const candidate = value as Record<string, unknown>;
+  if (candidate.scope !== 'git-push') {
+    return undefined;
+  }
+
+  if (
+    'sessionID' in candidate &&
+    candidate.sessionID !== undefined &&
+    typeof candidate.sessionID !== 'string'
+  ) {
+    return undefined;
+  }
+
+  if (
+    'expiresAt' in candidate &&
+    candidate.expiresAt !== undefined &&
+    typeof candidate.expiresAt !== 'number'
+  ) {
+    return undefined;
+  }
+
+  return {
+    scope: 'git-push',
+    sessionID:
+      typeof candidate.sessionID === 'string' ? candidate.sessionID : undefined,
+    expiresAt:
+      typeof candidate.expiresAt === 'number' ? candidate.expiresAt : undefined,
+  };
+}
+
+function authorizationMatchesEvaluation(
+  authorization: ToolExecutionAuthorization,
+  evaluation: ToolPolicyEvaluation,
+  sessionID?: string,
+): boolean {
+  if (authorization.scope !== 'git-push' || evaluation.category !== 'git-push') {
+    return false;
+  }
+
+  if (authorization.sessionID && sessionID && authorization.sessionID !== sessionID) {
+    return false;
+  }
+
+  if (
+    typeof authorization.expiresAt === 'number' &&
+    !isOverrideFresh(authorization.expiresAt)
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 function detectApprovedIntentCategory(text: string): string | undefined {
@@ -269,6 +334,24 @@ export function createToolPolicyHook(_ctx: PluginInput) {
         tool: input.tool,
         args: output.args,
       });
+      const authorization = getAuthorizationRecord(
+        output.args[AUTHORIZATION_ARG_KEY],
+      );
+      if (AUTHORIZATION_ARG_KEY in output.args) {
+        delete output.args[AUTHORIZATION_ARG_KEY];
+      }
+
+      if (
+        authorization &&
+        authorizationMatchesEvaluation(
+          authorization,
+          evaluation,
+          input.sessionID,
+        )
+      ) {
+        evaluations.set(input.callID, buildOverrideEvaluation(evaluation));
+        return;
+      }
 
       if (input.sessionID) {
         const approvedIntent = approvedIntentBySession.get(input.sessionID);
