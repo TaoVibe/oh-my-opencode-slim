@@ -24,6 +24,7 @@ import {
   ast_grep_search,
   createBackgroundTools,
   createCouncilTool,
+  createDelegateTaskTool,
   createWebfetchTool,
   lsp_diagnostics,
   lsp_find_references,

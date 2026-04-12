@@ -81,12 +81,6 @@ You can specify either:
       let resolvedAgent: string;
 
       if (args.category !== undefined && args.category !== null) {
-        if (args.subagent_type !== undefined && args.subagent_type !== null) {
-          const cat = String(args.category);
-          const resolved = resolveCategory(cat);
-          return `Provide either category OR subagent_type, not both. Category "${cat}" resolves to "${resolved}".`;
-        }
-
         const category = String(args.category);
         if (!isValidCategory(category)) {
           return `Invalid category "${category}". Valid categories: ${validCategories}`;
