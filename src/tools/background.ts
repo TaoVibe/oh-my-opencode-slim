@@ -5,8 +5,17 @@ import {
 } from '@opencode-ai/plugin';
 import type { BackgroundTaskManager } from '../background';
 import type { PluginConfig } from '../config';
-import { SUBAGENT_NAMES } from '../config';
+import {
+  ALL_AGENT_NAMES,
+  SUBAGENT_NAMES,
+} from '../config';
 import type { MultiplexerConfig } from '../config/schema';
+import {
+  getCategoryRoutingHint,
+  getValidCategoriesString,
+  isValidCategory,
+  resolveCategory,
+} from '../config/categories';
 
 const z = tool.schema;
 
@@ -24,9 +33,9 @@ export function createBackgroundTools(
   _multiplexerConfig?: MultiplexerConfig,
   _pluginConfig?: PluginConfig,
 ): Record<string, ToolDefinition> {
-  const agentNames = SUBAGENT_NAMES.join(', ');
+  const agentNames = ALL_AGENT_NAMES.join(', ');
+  const validCategories = getValidCategoriesString();
 
-  // Tool for launching agent tasks (fire-and-forget)
   const background_task = tool({
     description: `Launch background agent task. Returns task_id immediately.
 
@@ -35,14 +44,25 @@ Flow: launch → wait for automatic notification when complete.
 Key behaviors:
 - Fire-and-forget: returns task_id in ~1ms
 - Parallel: up to 10 concurrent tasks
-- Auto-notify: parent session receives result when task completes`,
+- Auto-notify: parent session receives result when task completes
+
+You can specify either:
+- agent: Direct agent name (e.g., "explorer", "prometheus")
+- category: Task category that maps to optimal agent (e.g., "planning", "review")`,
 
     args: {
       description: z
         .string()
         .describe('Short description of the task (5-10 words)'),
       prompt: z.string().describe('The task prompt for the agent'),
-      agent: z.string().describe(`Agent to use: ${agentNames}`),
+      agent: z
+        .string()
+        .optional()
+        .describe(`Agent to use: ${agentNames}`),
+      category: z
+        .string()
+        .optional()
+        .describe(`Task category (alternative to agent): ${validCategories}`),
     },
     async execute(args, toolContext) {
       if (
@@ -53,20 +73,44 @@ Key behaviors:
         throw new Error('Invalid toolContext: missing sessionID');
       }
 
-      const agent = String(args.agent);
+      const parentSessionId = (toolContext as { sessionID: string }).sessionID;
       const prompt = String(args.prompt);
       const description = String(args.description);
-      const parentSessionId = (toolContext as { sessionID: string }).sessionID;
+
+      // Resolve agent - either direct or via category
+      let resolvedAgent: string;
+
+      if (args.category !== undefined && args.category !== null) {
+        if (args.agent !== undefined && args.agent !== null) {
+          const cat = String(args.category);
+          const resolved = resolveCategory(cat);
+          return `Provide either category OR agent, not both. Category "${cat}" resolves to "${resolved}".`;
+        }
+
+        const category = String(args.category);
+        if (!isValidCategory(category)) {
+          return `Invalid category "${category}". Valid categories: ${validCategories}`;
+        }
+        const agent = resolveCategory(category);
+        if (!agent) {
+          return `Category "${category}" has no default agent`;
+        }
+        resolvedAgent = agent;
+      } else if (args.agent !== undefined && args.agent !== null) {
+        resolvedAgent = String(args.agent);
+      } else {
+        return `Must provide either agent or category. Category routing: ${getCategoryRoutingHint()}`;
+      }
 
       // Validate agent against delegation rules
-      if (!manager.isAgentAllowed(parentSessionId, agent)) {
+      if (!manager.isAgentAllowed(parentSessionId, resolvedAgent)) {
         const allowed = manager.getAllowedSubagents(parentSessionId);
-        return `Agent '${agent}' is not allowed. Allowed agents: ${allowed.join(', ')}`;
+        return `Agent '${resolvedAgent}' is not allowed. Allowed agents: ${allowed.join(', ')}`;
       }
 
       // Fire-and-forget launch
       const task = manager.launch({
-        agent,
+        agent: resolvedAgent,
         prompt,
         description,
         parentSessionId,
@@ -75,7 +119,7 @@ Key behaviors:
       return `Background task launched.
 
 Task ID: ${task.id}
-Agent: ${agent}
+Agent: ${resolvedAgent}${args.category ? ` (via category: ${args.category})` : ''}
 Status: ${task.status}
 
 Use \`background_output\` with task_id="${task.id}" to get results.`;

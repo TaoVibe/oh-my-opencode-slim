@@ -15,9 +15,16 @@ export const SUBAGENT_NAMES = [
   'council-master',
 ] as const;
 
+// Custom agents added by user (prometheus, momus, hephaestus)
+export const CUSTOM_AGENT_NAMES = ['prometheus', 'momus', 'hephaestus'] as const;
+
 export const ORCHESTRATOR_NAME = 'orchestrator' as const;
 
-export const ALL_AGENT_NAMES = [ORCHESTRATOR_NAME, ...SUBAGENT_NAMES] as const;
+export const ALL_AGENT_NAMES = [
+  ORCHESTRATOR_NAME,
+  ...SUBAGENT_NAMES,
+  ...CUSTOM_AGENT_NAMES,
+] as const;
 
 // Agent name type (for use in DEFAULT_MODELS)
 export type AgentName = (typeof ALL_AGENT_NAMES)[number];
@@ -37,6 +44,8 @@ export const ORCHESTRATABLE_AGENTS = [
   'designer',
   'fixer',
   'council',
+  'prometheus',
+  'momus',
 ] as const;
 
 export const SUBAGENT_DELEGATION_RULES: Record<AgentName, readonly string[]> = {
@@ -49,6 +58,9 @@ export const SUBAGENT_DELEGATION_RULES: Record<AgentName, readonly string[]> = {
   council: [],
   councillor: [],
   'council-master': [],
+  prometheus: [],
+  momus: [],
+  hephaestus: [],
 };
 
 // Default models for each agent
@@ -63,6 +75,9 @@ export const DEFAULT_MODELS: Record<AgentName, string | undefined> = {
   council: 'openai/gpt-5.4-mini',
   councillor: 'openai/gpt-5.4-mini',
   'council-master': 'openai/gpt-5.4-mini',
+  prometheus: undefined,
+  momus: undefined,
+  hephaestus: undefined,
 };
 
 // Polling configuration
