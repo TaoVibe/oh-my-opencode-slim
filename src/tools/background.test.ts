@@ -34,10 +34,14 @@ describe('background_task tool', () => {
   });
 
   test('applies lane-based route chain for category launches', async () => {
+    let launchedPrompt = '';
     const manager = {
       isAgentAllowed: () => true,
       getAllowedSubagents: () => ['prometheus'],
-      launch: () => ({ id: 'bg_2', status: 'pending' }),
+      launch: (args: { prompt: string }) => {
+        launchedPrompt = args.prompt;
+        return { id: 'bg_2', status: 'pending' };
+      },
       resolveConfiguredModel: (_agent: string, _session: string, routeChain: string[]) =>
         routeChain[0],
       resolveFallbackChain: (_agent: string, _session: string, routeChain: string[]) =>
@@ -78,6 +82,8 @@ describe('background_task tool', () => {
 
     expect(result).toContain('lane: value');
     expect(result).toContain('Model: XiaomiMiMo/MiMo-V2-Flash-TEE');
+    expect(launchedPrompt).toContain('<routing_context>');
+    expect(launchedPrompt).toContain('lane=value');
   });
 });
 

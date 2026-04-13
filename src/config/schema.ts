@@ -106,6 +106,7 @@ export type RoutingLane = z.infer<typeof RoutingLaneSchema>;
 
 const RouteTargetSchema = z.object({
   agent: z.string().optional(),
+  promptAppend: z.string().optional(),
   model: z
     .union([
       z.string(),

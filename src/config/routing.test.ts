@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { resolveCategoryRoute } from './routing';
+import { buildRoutedPrompt, resolveCategoryRoute } from './routing';
 
 describe('category lane routing', () => {
   test('uses requested lane when configured', () => {
@@ -55,5 +55,21 @@ describe('category lane routing', () => {
     expect(result.modelChain).toEqual([
       'Qwen/Qwen3-235B-A22B-Instruct-2507-TEE',
     ]);
+  });
+
+  test('builds routed prompt with lane context', () => {
+    const prompt = buildRoutedPrompt({
+      prompt: 'Do the work',
+      category: 'planning',
+      lane: 'cheap',
+      agent: 'prometheus',
+      promptAppend: 'Keep it bounded.',
+    });
+
+    expect(prompt).toContain('<routing_context>');
+    expect(prompt).toContain('category=planning');
+    expect(prompt).toContain('lane=cheap');
+    expect(prompt).toContain('resolved_agent=prometheus');
+    expect(prompt).toContain('route_instruction=Keep it bounded.');
   });
 });

@@ -7,6 +7,7 @@ import type { BackgroundTaskManager } from '../background';
 import type { PluginConfig } from '../config';
 import { ALL_AGENT_NAMES } from '../config';
 import {
+  buildRoutedPrompt,
   getValidRoutingLanesString,
   resolveCategoryRoute,
   checkAgentAllowed,
@@ -115,9 +116,17 @@ You can specify either:
         return allowedError.message;
       }
 
+      const routedPrompt = buildRoutedPrompt({
+        prompt,
+        category: resolved.category,
+        lane: route.lane ?? resolved.lane,
+        agent: resolvedAgent,
+        promptAppend: route.promptAppend,
+      });
+
       const task = manager.launch({
         agent: resolvedAgent,
-        prompt,
+        prompt: routedPrompt,
         description,
         parentSessionId,
         category: resolved.category,

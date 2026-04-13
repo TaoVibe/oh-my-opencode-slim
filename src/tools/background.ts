@@ -7,6 +7,7 @@ import type { BackgroundTaskManager } from '../background';
 import type { PluginConfig } from '../config';
 import { ALL_AGENT_NAMES, isModelAllowed } from '../config';
 import {
+  buildRoutedPrompt,
   getCategoryRoutingHint,
   getValidCategoriesString,
   getValidRoutingLanesString,
@@ -115,6 +116,7 @@ You can specify either:
       let resolvedAgent: string;
       let resolvedLane: string | undefined;
       let routeModelChain: string[] = [];
+      let routePromptAppend: string | undefined;
 
       if (categoryArg) {
         if (agentArg) {
@@ -135,6 +137,7 @@ You can specify either:
         resolvedAgent = route.agent ?? agent;
         resolvedLane = route.lane;
         routeModelChain = route.modelChain;
+        routePromptAppend = route.promptAppend;
       } else if (agentArg) {
         if (laneArg) {
           return 'lane requires category routing. Provide category instead of direct agent.';
@@ -151,9 +154,17 @@ You can specify either:
       }
 
       // Fire-and-forget launch
+      const routedPrompt = buildRoutedPrompt({
+        prompt,
+        category: categoryArg,
+        lane: resolvedLane as any,
+        agent: resolvedAgent,
+        promptAppend: routePromptAppend,
+      });
+
       const task = manager.launch({
         agent: resolvedAgent,
-        prompt,
+        prompt: routedPrompt,
         description,
         parentSessionId,
         category: categoryArg,

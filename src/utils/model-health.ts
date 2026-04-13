@@ -6,6 +6,14 @@ interface ModelHealthState {
   cooldownUntil: number;
 }
 
+export interface ModelHealthSnapshot {
+  model: string;
+  consecutiveFailures: number;
+  cooldownLevel: number;
+  cooldownUntil?: string;
+  isCooling: boolean;
+}
+
 function classifyFailure(message: string): 'immediate' | 'transient' | 'other' {
   const text = message.toLowerCase();
 
@@ -111,5 +119,20 @@ export class ModelHealthTracker {
     }
 
     this.states.set(model, state);
+  }
+
+  getSnapshots(now = Date.now()): ModelHealthSnapshot[] {
+    return Array.from(this.states.entries())
+      .map(([model, state]) => ({
+        model,
+        consecutiveFailures: state.consecutiveFailures,
+        cooldownLevel: state.cooldownLevel,
+        cooldownUntil:
+          state.cooldownUntil > 0
+            ? new Date(state.cooldownUntil).toISOString()
+            : undefined,
+        isCooling: state.cooldownUntil > now,
+      }))
+      .sort((left, right) => Number(right.isCooling) - Number(left.isCooling));
   }
 }

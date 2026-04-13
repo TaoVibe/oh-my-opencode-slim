@@ -1,4 +1,6 @@
 import type { Plugin } from '@opencode-ai/plugin';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createAgents, getAgentConfigs } from './agents';
 import { BackgroundTaskManager, MultiplexerSessionManager } from './background';
 import { loadPluginConfig, type MultiplexerConfig } from './config';
@@ -39,8 +41,10 @@ import {
   setUserLspConfig,
 } from './tools';
 import { log } from './utils/logger';
+import { getConfigSearchDirs } from './cli/paths';
 
 const OhMyOpenCodeLite: Plugin = async (ctx) => {
+  const pluginStartedAt = new Date().toISOString();
   const config = loadPluginConfig(ctx.directory);
   const agentDefs = createAgents(config);
   const agents = getAgentConfigs(config);
@@ -159,6 +163,18 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     backgroundManager,
     multiplexerSessionManager,
     config,
+    {
+      pluginStartedAt,
+      configPaths: [
+        ...getConfigSearchDirs().flatMap((dir) => [
+          join(dir, 'oh-my-opencode-slim.jsonc'),
+          join(dir, 'oh-my-opencode-slim.json'),
+        ]),
+        join(ctx.directory, '.opencode', 'oh-my-opencode-slim.jsonc'),
+        join(ctx.directory, '.opencode', 'oh-my-opencode-slim.json'),
+      ],
+      buildArtifactPaths: [fileURLToPath(import.meta.url)],
+    },
   );
 
   // Initialize auto-update checker hook

@@ -6,7 +6,17 @@ export interface ResolvedCategoryRoute {
   agent?: string;
   lane?: RoutingLane;
   modelChain: string[];
+  promptAppend?: string;
 }
+
+const LANE_GUIDANCE: Record<RoutingLane, string> = {
+  cheap:
+    'Prefer the fastest acceptable path. Keep scope bounded, avoid over-research, and optimize for low retry cost.',
+  value:
+    'Balance correctness, speed, and token cost. Do enough reasoning to avoid wasteful retries, but avoid premium-level depth unless the task clearly needs it.',
+  premium:
+    'Prioritize correctness, robustness, and high-confidence decisions over token cost. Use deeper reasoning and stronger verification before concluding.',
+};
 
 function normalizeLane(value: string | null | undefined): RoutingLane | undefined {
   if (!value) return undefined;
@@ -71,6 +81,7 @@ export function resolveCategoryRoute(
       agent: categoryConfig?.agent,
       lane: defaultLane,
       modelChain: [],
+      promptAppend: undefined,
     };
   }
 
@@ -80,6 +91,7 @@ export function resolveCategoryRoute(
       agent: categoryConfig.agent,
       lane: defaultLane,
       modelChain: [],
+      promptAppend: undefined,
     };
   }
 
@@ -87,5 +99,41 @@ export function resolveCategoryRoute(
     agent: laneConfig.agent ?? categoryConfig.agent,
     lane: defaultLane,
     modelChain: dedupeModels(normalizeModelChain(laneConfig.model)),
+    promptAppend:
+      typeof laneConfig.promptAppend === 'string'
+        ? laneConfig.promptAppend.trim() || undefined
+        : undefined,
   };
+}
+
+export function buildRoutedPrompt(args: {
+  prompt: string;
+  category?: string;
+  lane?: RoutingLane;
+  agent?: string;
+  promptAppend?: string;
+}): string {
+  const blocks: string[] = [];
+
+  if (args.category || args.lane || args.agent || args.promptAppend) {
+    blocks.push('<routing_context>');
+    if (args.category) {
+      blocks.push(`category=${args.category}`);
+    }
+    if (args.lane) {
+      blocks.push(`lane=${args.lane}`);
+      blocks.push(`lane_guidance=${LANE_GUIDANCE[args.lane]}`);
+    }
+    if (args.agent) {
+      blocks.push(`resolved_agent=${args.agent}`);
+    }
+    if (args.promptAppend) {
+      blocks.push(`route_instruction=${args.promptAppend}`);
+    }
+    blocks.push('</routing_context>');
+  }
+
+  return blocks.length > 0
+    ? `${blocks.join('\n')}\n\n---\n\n${args.prompt}`
+    : args.prompt;
 }

@@ -4,6 +4,7 @@ export * from './council-schema';
 export * from './model-policy';
 export { loadAgentPrompt, loadPluginConfig } from './loader';
 export * from './resolution';
+export * from './routing-diagnostics';
 export * from './routing';
 export * from './schema';
 export { getAgentOverride } from './utils';

@@ -27,6 +27,7 @@ import type { MultiplexerConfig } from '../config/schema';
 import { getMultiplexer } from '../multiplexer';
 import {
   applyAgentVariant,
+  type ModelHealthSnapshot,
   ModelHealthTracker,
   resolveAgentVariant,
 } from '../utils';
@@ -93,6 +94,9 @@ export interface BackgroundTaskSnapshot {
   configuredModel?: string;
   variant?: string;
   fallbackChain: string[];
+  category?: string;
+  lane?: string;
+  routeModelChain?: string[];
 }
 
 export interface SessionAgentModelOverrideSnapshot {
@@ -798,7 +802,14 @@ export class BackgroundTaskManager {
       configuredModel: this.resolveConfiguredModel(task.agent, task.parentSessionId),
       variant: this.resolveConfiguredVariant(task.agent, task.parentSessionId),
       fallbackChain: this.resolveFallbackChain(task.agent, task.parentSessionId),
+      category: task.category,
+      lane: task.lane,
+      routeModelChain: task.routeModelChain,
     }));
+  }
+
+  getModelHealthSnapshots(): ModelHealthSnapshot[] {
+    return this.modelHealth.getSnapshots();
   }
 
   /**

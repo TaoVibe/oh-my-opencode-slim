@@ -1,4 +1,9 @@
+import { buildModelKeyAliases } from '../cli/model-key-normalization';
 import type { PluginConfig } from './schema';
+
+function getModelKeyCandidates(model: string): string[] {
+  return [model, ...buildModelKeyAliases(model)];
+}
 
 export function isModelPolicyEnabled(config?: PluginConfig): boolean {
   return config?.modelPolicy?.enforceAllowlist === true;
@@ -28,7 +33,8 @@ export function isModelAllowed(
     return true;
   }
 
-  return getAllowedModels(config).has(model);
+  const allowed = getAllowedModels(config);
+  return getModelKeyCandidates(model).some((candidate) => allowed.has(candidate));
 }
 
 export function filterAllowedModels(
@@ -40,7 +46,9 @@ export function filterAllowedModels(
   }
 
   const allowed = getAllowedModels(config);
-  return models.filter((model) => allowed.has(model));
+  return models.filter((model) =>
+    getModelKeyCandidates(model).some((candidate) => allowed.has(candidate)),
+  );
 }
 
 export function getModelPolicyBlockMessage(

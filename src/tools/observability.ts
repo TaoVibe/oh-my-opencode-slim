@@ -1,9 +1,11 @@
+import { existsSync, statSync } from 'node:fs';
 import { type ToolDefinition, tool } from '@opencode-ai/plugin';
 import type {
   BackgroundTaskManager,
   MultiplexerSessionManager,
 } from '../background';
 import type { PluginConfig } from '../config';
+import { buildRoutingDiagnostics } from '../config';
 
 const z = tool.schema;
 
@@ -11,11 +13,139 @@ function formatList(items: string[]): string {
   return items.length > 0 ? items.join(', ') : 'none';
 }
 
+interface RuntimeObservabilityMeta {
+  pluginStartedAt: string;
+  configPaths?: string[];
+  buildArtifactPaths?: string[];
+  latestConfigMtime?: string;
+  latestBuildMtime?: string;
+}
+
+function getLatestMtime(paths: string[] | undefined): string | undefined {
+  if (!paths || paths.length === 0) {
+    return undefined;
+  }
+
+  const mtimes = paths
+    .filter((filePath) => existsSync(filePath))
+    .map((filePath) => statSync(filePath).mtimeMs);
+
+  if (mtimes.length === 0) {
+    return undefined;
+  }
+
+  return new Date(Math.max(...mtimes)).toISOString();
+}
+
 export function createObservabilityTool(
   backgroundManager: BackgroundTaskManager,
   multiplexerSessionManager: MultiplexerSessionManager,
   pluginConfig?: PluginConfig,
+  runtimeMeta?: RuntimeObservabilityMeta,
 ): Record<string, ToolDefinition> {
+  const routing_doctor = tool({
+    description: `Run doctor-style checks for routing freshness and degraded model chains.
+
+Returns:
+- stale-session reminder when runtime config likely needs restart
+- blocked/degraded routes
+- cooled-only route warnings
+- preferred vs effective route drift`,
+    args: {},
+    async execute() {
+      const modelHealth = backgroundManager.getModelHealthSnapshots();
+      const routeDiagnostics = buildRoutingDiagnostics(pluginConfig, modelHealth);
+      const pluginStartedAt = runtimeMeta?.pluginStartedAt
+        ? Date.parse(runtimeMeta.pluginStartedAt)
+        : Number.NaN;
+      const latestConfigMtime =
+        runtimeMeta?.latestConfigMtime ?? getLatestMtime(runtimeMeta?.configPaths);
+      const latestBuildMtime =
+        runtimeMeta?.latestBuildMtime ??
+        getLatestMtime(runtimeMeta?.buildArtifactPaths);
+      const lines = ['Routing Doctor'];
+
+      lines.push(`Plugin started: ${runtimeMeta?.pluginStartedAt ?? 'unknown'}`);
+      if (latestConfigMtime) {
+        lines.push(`Latest config mtime: ${latestConfigMtime}`);
+      }
+      if (latestBuildMtime) {
+        lines.push(`Latest build mtime: ${latestBuildMtime}`);
+      }
+
+      const staleConfig =
+        latestConfigMtime !== undefined &&
+        Number.isFinite(pluginStartedAt) &&
+        Date.parse(latestConfigMtime) > pluginStartedAt;
+      const staleBuild =
+        latestBuildMtime !== undefined &&
+        Number.isFinite(pluginStartedAt) &&
+        Date.parse(latestBuildMtime) > pluginStartedAt;
+
+      if (staleConfig || staleBuild) {
+        lines.push(
+          `Freshness: stale session detected (${[
+            staleConfig ? 'config newer than session' : null,
+            staleBuild ? 'build newer than session' : null,
+          ]
+            .filter(Boolean)
+            .join(', ')}). Restart qde before debugging routing behavior.`,
+        );
+      } else {
+        lines.push('Freshness: session appears current against known config/build files.');
+      }
+
+      const blocked = routeDiagnostics.filter((item) => item.status === 'blocked');
+      const degraded = routeDiagnostics.filter((item) => item.status === 'degraded');
+
+      lines.push(
+        `Summary: healthy=${routeDiagnostics.filter((item) => item.status === 'healthy').length}, degraded=${degraded.length}, blocked=${blocked.length}`,
+      );
+
+      if (!staleConfig && !staleBuild && blocked.length === 0 && degraded.length === 0) {
+        lines.push('Verdict: routing looks healthy.');
+      } else {
+        lines.push(
+          `Verdict: routing is ${staleConfig || staleBuild ? 'at risk from stale runtime state' : 'degraded'}${blocked.length > 0 ? ' and partially blocked' : ''}.`,
+        );
+      }
+
+      if (blocked.length > 0) {
+        lines.push('', 'Blocked Routes');
+        for (const item of blocked) {
+          lines.push(`${item.category}/${item.lane} | ${item.reason}`);
+          lines.push(
+            `  preferred=${item.preferredModel ?? 'none'} | effective=${item.effectiveModel ?? 'none'}`,
+          );
+        }
+      }
+
+      if (degraded.length > 0) {
+        lines.push('', 'Degraded Routes');
+        for (const item of degraded) {
+          lines.push(`${item.category}/${item.lane} | ${item.reason}`);
+          lines.push(
+            `  preferred=${item.preferredModel ?? 'none'} | effective=${item.effectiveModel ?? 'none'}`,
+          );
+          if (item.cooledModels.length > 0) {
+            lines.push(`  cooled=${formatList(item.cooledModels)}`);
+          }
+        }
+      }
+
+      if (modelHealth.length > 0) {
+        lines.push('', 'Cooling Models');
+        for (const item of modelHealth.filter((entry) => entry.isCooling)) {
+          lines.push(
+            `${item.model} | cooldownLevel=${item.cooldownLevel}${item.cooldownUntil ? ` | until=${item.cooldownUntil}` : ''}`,
+          );
+        }
+      }
+
+      return lines.join('\n');
+    },
+  });
+
   const observability_status = tool({
     description: `Show current runtime status for background agents and panes.
 
@@ -50,6 +180,13 @@ Returns:
       const sessionOverrides = currentSessionId
         ? backgroundManager.getSessionAgentModelOverrides(currentSessionId)
         : {};
+      const modelHealth = backgroundManager.getModelHealthSnapshots();
+      const routeDiagnostics = buildRoutingDiagnostics(pluginConfig, modelHealth);
+      const latestConfigMtime =
+        runtimeMeta?.latestConfigMtime ?? getLatestMtime(runtimeMeta?.configPaths);
+      const latestBuildMtime =
+        runtimeMeta?.latestBuildMtime ??
+        getLatestMtime(runtimeMeta?.buildArtifactPaths);
 
       const counts = {
         pending: allTasks.filter((task) => task.status === 'pending').length,
@@ -63,6 +200,9 @@ Returns:
       const lines = [
         'Runtime Status',
         `Stack: ${pluginConfig?.stackMode ?? 'default'}`,
+        `Plugin started: ${runtimeMeta?.pluginStartedAt ?? 'unknown'}`,
+        `Latest config mtime: ${latestConfigMtime ?? 'unknown'}`,
+        `Latest build mtime: ${latestBuildMtime ?? 'unknown'}`,
         `Model policy: ${pluginConfig?.modelPolicy?.enforceAllowlist === true ? 'allowlist-enforced' : 'disabled'}`,
         `Allowed models: ${(pluginConfig?.modelPolicy?.allowedModels ?? []).length}`,
         `Tasks: pending=${counts.pending}, starting=${counts.starting}, running=${counts.running}, completed=${counts.completed}, failed=${counts.failed}, cancelled=${counts.cancelled}`,
@@ -80,6 +220,12 @@ Returns:
           );
           lines.push(`  model=${task.configuredModel ?? 'unknown'}`);
           lines.push(`  variant=${task.variant ?? 'none'}`);
+          lines.push(
+            `  route=${task.category ?? 'direct'}${task.lane ? `/${task.lane}` : ''}`,
+          );
+          if (task.routeModelChain && task.routeModelChain.length > 0) {
+            lines.push(`  routeChain=${formatList(task.routeModelChain)}`);
+          }
           lines.push(`  fallback=${formatList(task.fallbackChain)}`);
           lines.push(`  session=${task.sessionId ?? 'not started yet'}`);
         }
@@ -92,6 +238,36 @@ Returns:
       } else {
         for (const [agent, model] of overrideEntries) {
           lines.push(`${agent}=${model}`);
+        }
+      }
+
+      lines.push('', 'Model Health');
+      if (modelHealth.length === 0) {
+        lines.push('(none)');
+      } else {
+        for (const item of modelHealth) {
+          lines.push(
+            `${item.model} | cooling=${item.isCooling ? 'yes' : 'no'} | failures=${item.consecutiveFailures} | cooldownLevel=${item.cooldownLevel}${item.cooldownUntil ? ` | until=${item.cooldownUntil}` : ''}`,
+          );
+        }
+      }
+
+      lines.push('', 'Route Diagnostics');
+      if (routeDiagnostics.length === 0) {
+        lines.push('(none)');
+      } else {
+        for (const item of routeDiagnostics) {
+          lines.push(
+            `${item.category}/${item.lane} | ${item.status} | ${item.reason}`,
+          );
+          lines.push(
+            `  preferred=${item.preferredModel ?? 'none'} | effective=${item.effectiveModel ?? 'none'}`,
+          );
+          lines.push(`  configured=${formatList(item.configuredModels)}`);
+          lines.push(`  allowed=${formatList(item.allowedModels)}`);
+          if (item.cooledModels.length > 0) {
+            lines.push(`  cooled=${formatList(item.cooledModels)}`);
+          }
         }
       }
 
@@ -110,5 +286,5 @@ Returns:
     },
   });
 
-  return { observability_status };
+  return { observability_status, routing_doctor };
 }

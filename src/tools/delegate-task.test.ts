@@ -30,9 +30,13 @@ describe('delegate_task tool', () => {
   });
 
   test('applies route lane model chain for category launches', async () => {
+    let launchedPrompt = '';
     const manager = {
       getAllowedSubagents: () => ['prometheus'],
-      launch: () => ({ id: 'bg_2', status: 'pending' }),
+      launch: (args: { prompt: string }) => {
+        launchedPrompt = args.prompt;
+        return { id: 'bg_2', status: 'pending' };
+      },
       resolveConfiguredModel: (_agent: string, _session: string, routeChain: string[]) =>
         routeChain[0],
       resolveFallbackChain: (_agent: string, _session: string, routeChain: string[]) =>
@@ -70,5 +74,7 @@ describe('delegate_task tool', () => {
 
     expect(result).toContain('lane: cheap');
     expect(result).toContain('Model: Qwen/Qwen3-30B-A3B');
+    expect(launchedPrompt).toContain('<routing_context>');
+    expect(launchedPrompt).toContain('lane=cheap');
   });
 });
