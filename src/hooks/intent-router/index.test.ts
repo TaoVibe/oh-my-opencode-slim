@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   buildIntentInstruction,
   createIntentRouterHook,
+  detectLane,
   detectIntent,
   INTENT_ALIASES,
 } from './index';
@@ -60,6 +61,24 @@ describe('intent router hook', () => {
     );
   });
 
+  test('detects premium lane for critical architecture work', () => {
+    expect(detectLane('this is important backbone architecture work')).toBe(
+      'premium',
+    );
+  });
+
+  test('detects cheap lane for narrow test work', () => {
+    expect(detectLane('small change, one-file narrow test improvement')).toBe(
+      'cheap',
+    );
+  });
+
+  test('includes lane hint in internal instruction blocks', () => {
+    const instruction = buildIntentInstruction('deep_review', 'premium');
+
+    expect(instruction).toContain('lane_hint=premium');
+  });
+
   test('prepends routing hint for orchestrator sessions', async () => {
     const hook = createIntentRouterHook();
     const output = {
@@ -78,6 +97,23 @@ describe('intent router hook', () => {
     expect(output.messages[0].parts[0].text).toContain(
       'Can you do a deep research pass?',
     );
+  });
+
+  test('prepends lane hint even without explicit deep intent', async () => {
+    const hook = createIntentRouterHook();
+    const output = {
+      messages: [
+        {
+          info: { role: 'user', agent: 'orchestrator' },
+          parts: [{ type: 'text', text: 'small change, one-file quick fix' }],
+        },
+      ],
+    };
+
+    await hook['experimental.chat.messages.transform']({}, output);
+
+    expect(output.messages[0].parts[0].text).toContain('<intent_router>');
+    expect(output.messages[0].parts[0].text).toContain('lane_hint=cheap');
   });
 
   test('skips non-orchestrator sessions', async () => {

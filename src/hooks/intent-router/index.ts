@@ -15,6 +15,7 @@ interface MessageWithParts {
 }
 
 export type RoutedIntent = 'deep_research' | 'deep_review';
+export type RoutedLane = 'cheap' | 'value' | 'premium';
 
 interface IntentRule {
   intent: RoutedIntent;
@@ -40,6 +41,37 @@ function buildIntentRules(): readonly IntentRule[] {
 
 const INTENT_RULES = buildIntentRules();
 
+const LANE_PATTERNS: Readonly<Record<RoutedLane, readonly RegExp[]>> = {
+  cheap: [
+    /\bquick fix\b/i,
+    /\bsmall change\b/i,
+    /\bminor\b/i,
+    /\btrivial\b/i,
+    /\btypo\b/i,
+    /\bone[- ]file\b/i,
+    /\bnarrow test improvement\b/i,
+    /\bsimple test\b/i,
+  ],
+  value: [
+    /\bmedium\b/i,
+    /\bmulti[- ]file\b/i,
+    /\bresearch\b/i,
+    /\binvestigate\b/i,
+    /\bdebug\b/i,
+    /\boptimi[sz]e\b/i,
+  ],
+  premium: [
+    /\bimportant\b/i,
+    /\bbackbone\b/i,
+    /\bcritical\b/i,
+    /\bhigh[- ]stakes\b/i,
+    /\barchitecture\b/i,
+    /\bsecurity\b/i,
+    /\bdeep\b/i,
+    /\brepo[- ]scale\b/i,
+  ],
+};
+
 export function detectIntent(text: string): RoutedIntent | null {
   for (const rule of INTENT_RULES) {
     if (rule.pattern.test(text)) {
@@ -50,7 +82,22 @@ export function detectIntent(text: string): RoutedIntent | null {
   return null;
 }
 
-export function buildIntentInstruction(intent: RoutedIntent): string {
+export function detectLane(text: string): RoutedLane | null {
+  const matches = (Object.keys(LANE_PATTERNS) as RoutedLane[]).filter((lane) =>
+    LANE_PATTERNS[lane].some((pattern) => pattern.test(text)),
+  );
+
+  if (matches.length !== 1) {
+    return null;
+  }
+
+  return matches[0];
+}
+
+export function buildIntentInstruction(
+  intent: RoutedIntent,
+  lane?: RoutedLane | null,
+): string {
   const rule = INTENT_RULES.find((item) => item.intent === intent);
   if (!rule) {
     return '';
@@ -59,6 +106,7 @@ export function buildIntentInstruction(intent: RoutedIntent): string {
   return [
     '<intent_router>',
     `intent=${rule.intent}`,
+    ...(lane ? [`lane_hint=${lane}`] : []),
     'Follow the orchestrator workflow for this intent.',
     '</intent_router>',
   ].join('\n');
@@ -110,11 +158,19 @@ export function createIntentRouterHook() {
       }
 
       const intent = detectIntent(originalText);
-      if (!intent) {
+      const lane = detectLane(originalText);
+      if (!intent && !lane) {
         return;
       }
 
-      const instruction = buildIntentInstruction(intent);
+      const instruction = intent
+        ? buildIntentInstruction(intent, lane)
+        : [
+            '<intent_router>',
+            `lane_hint=${lane}`,
+            'Prefer category + lane routing for this request.',
+            '</intent_router>',
+          ].join('\n');
       if (!instruction) {
         return;
       }

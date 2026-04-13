@@ -93,6 +93,15 @@ Parse request: explicit requirements + implicit needs.
 Evaluate approach by: quality, speed, cost, reliability.
 Choose the path that optimizes all four.
 
+### Lane Selection
+When delegating, prefer **category + lane** over raw model thinking.
+
+- \`cheap\` = reversible, bounded, low-blast-radius work
+- \`value\` = medium-complexity reasoning/coding where cost still matters
+- \`premium\` = hard planning, repo-scale coding, architecture, or high wrong-answer cost
+
+If the user did not specify a lane, infer one from blast radius, reversibility, and expected retry cost, then delegate with \`task(category="...", lane="...")\`.
+
 ## 3. Delegation Check
 **STOP. Review specialists before acting.**
 
@@ -103,6 +112,7 @@ Choose the path that optimizes all four.
 - Provide context summaries, let specialists read what they need
 - Brief user on delegation goal before each call
 - Skip delegation if overhead ≥ doing it yourself
+- Prefer \`task(category="...", lane="...")\` or \`background_task(category="...", lane="...")\` before direct agent naming when the work fits the routing system.
 
 ## 4. Split and Parallelize
 Can tasks be split into subtasks and run in parallel?
