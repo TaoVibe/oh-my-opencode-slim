@@ -765,6 +765,9 @@
                   "agent": {
                     "type": "string"
                   },
+                  "promptAppend": {
+                    "type": "string"
+                  },
                   "model": {
                     "anyOf": [
                       {
@@ -804,6 +807,9 @@
                   "agent": {
                     "type": "string"
                   },
+                  "promptAppend": {
+                    "type": "string"
+                  },
                   "model": {
                     "anyOf": [
                       {
@@ -841,6 +847,9 @@
                 "type": "object",
                 "properties": {
                   "agent": {
+                    "type": "string"
+                  },
+                  "promptAppend": {
                     "type": "string"
                   },
                   "model": {
