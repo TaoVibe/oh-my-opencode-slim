@@ -27,6 +27,7 @@ import type { MultiplexerConfig } from '../config/schema';
 import { getMultiplexer } from '../multiplexer';
 import {
   applyAgentVariant,
+  ModelHealthTracker,
   resolveAgentVariant,
 } from '../utils';
 import { log } from '../utils/logger';
@@ -115,6 +116,7 @@ export class BackgroundTaskManager {
   private tmuxEnabled: boolean;
   private config?: PluginConfig;
   private backgroundConfig: BackgroundTaskConfig;
+  private modelHealth: ModelHealthTracker;
 
   // Start queue
   private startQueue: BackgroundTask[] = [];
@@ -147,6 +149,7 @@ export class BackgroundTaskManager {
     };
     this.maxConcurrentStarts = this.backgroundConfig.maxConcurrentStarts;
     this.depthTracker = new SubagentDepthTracker();
+    this.modelHealth = new ModelHealthTracker(config?.fallback?.health);
   }
 
   /**
@@ -340,7 +343,7 @@ export class BackgroundTaskManager {
       chain.push(model);
     }
 
-    return filterAllowedModels(chain, this.config);
+    return this.modelHealth.filterChain(filterAllowedModels(chain, this.config));
   }
 
   resolveConfiguredModel(
@@ -350,35 +353,41 @@ export class BackgroundTaskManager {
   ): string | undefined {
     const sessionOverride = this.getSessionAgentModelOverride(sessionId, agentName);
     if (sessionOverride) {
-      return filterAllowedModels([sessionOverride], this.config)[0];
+      return this.modelHealth.filterChain(
+        filterAllowedModels([sessionOverride], this.config),
+      )[0];
     }
     const model = this.config?.agents?.[agentName]?.model;
 
     if (Array.isArray(model)) {
       const first = model[0];
-      return filterAllowedModels(
+      return this.modelHealth.filterChain(
+        filterAllowedModels(
         [
           ...(routeModelChain ?? []),
           typeof first === 'string' ? first : first?.id,
         ].filter(
           (value): value is string => Boolean(value),
         ),
-        this.config,
+          this.config,
+        ),
       )[0];
     }
 
     if (typeof model === 'string') {
-      return filterAllowedModels([...(routeModelChain ?? []), model], this.config)[0];
+      return this.modelHealth.filterChain(
+        filterAllowedModels([...(routeModelChain ?? []), model], this.config),
+      )[0];
     }
 
-    return filterAllowedModels(
-      [
-        ...(routeModelChain ?? []),
-        DEFAULT_MODELS[agentName as keyof typeof DEFAULT_MODELS],
-      ].filter(
-        (value): value is string => Boolean(value),
+    return this.modelHealth.filterChain(
+      filterAllowedModels(
+        [
+          ...(routeModelChain ?? []),
+          DEFAULT_MODELS[agentName as keyof typeof DEFAULT_MODELS],
+        ].filter((value): value is string => Boolean(value)),
+        this.config,
       ),
-      this.config,
     )[0];
   }
 
@@ -562,12 +571,14 @@ export class BackgroundTaskManager {
             throw new Error('Empty response from provider');
           }
 
+          this.modelHealth.recordSuccess(model);
           this.completeTask(task, 'completed', extraction.text);
           succeeded = true;
           break;
         } catch (error) {
           const msg = error instanceof Error ? error.message : String(error);
           errors.push(`${modelLabel}: ${msg}`);
+          this.modelHealth.recordFailure(model, msg);
           log(`[background-manager] model failed: ${modelLabel} — ${msg}`, {
             taskId: task.id,
           });

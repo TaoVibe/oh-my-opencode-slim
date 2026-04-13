@@ -209,6 +209,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     runtimeChains,
     config.fallback?.enabled !== false && Object.keys(runtimeChains).length > 0,
     allowedModels,
+    config.fallback?.health,
   );
 
   // Initialize todo-continuation hook (opt-in auto-continue for incomplete todos)

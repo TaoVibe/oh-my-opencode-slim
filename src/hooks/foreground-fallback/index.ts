@@ -15,7 +15,9 @@
  */
 
 import type { PluginInput } from '@opencode-ai/plugin';
+import type { FallbackHealthConfig } from '../../config/schema';
 import { log } from '../../utils/logger';
+import { ModelHealthTracker } from '../../utils/model-health';
 
 type OpencodeClient = PluginInput['client'];
 
@@ -110,7 +112,12 @@ export class ForegroundFallbackManager {
     private readonly chains: Record<string, string[]>,
     private readonly enabled: boolean,
     private readonly allowedModels?: ReadonlySet<string>,
-  ) {}
+    healthConfig?: FallbackHealthConfig,
+  ) {
+    this.modelHealth = new ModelHealthTracker(healthConfig);
+  }
+
+  private readonly modelHealth: ModelHealthTracker;
 
   /**
    * Process an OpenCode plugin event.
@@ -138,10 +145,11 @@ export class ForegroundFallbackManager {
           typeof info.providerID === 'string' &&
           typeof info.modelID === 'string'
         ) {
-          this.sessionModel.set(
-            sessionID,
-            `${info.providerID}/${info.modelID}`,
-          );
+          const model = `${info.providerID}/${info.modelID}`;
+          this.sessionModel.set(sessionID, model);
+          if (!info.error) {
+            this.modelHealth.recordSuccess(model);
+          }
         }
         // Rate-limit on an individual message
         if (info.error && isRateLimitError(info.error)) {
@@ -233,6 +241,7 @@ export class ForegroundFallbackManager {
     try {
       const currentModel = this.sessionModel.get(sessionID);
       const agentName = this.sessionAgent.get(sessionID);
+      this.modelHealth.recordFailure(currentModel, 'rate limit exceeded');
       const chain = this.resolveChain(agentName, currentModel);
       if (!chain.length) {
         log('[foreground-fallback] no chain configured', {
@@ -355,14 +364,18 @@ export class ForegroundFallbackManager {
     if (agentName) {
       // Agent is known: use its chain exactly, or no chain at all.
       // Never fall through to cross-agent chains when the agent is identified.
-      return filterAllowed(this.chains[agentName] ?? [], this.allowedModels);
+      return this.modelHealth.filterChain(
+        filterAllowed(this.chains[agentName] ?? [], this.allowedModels),
+      );
     }
 
     // Agent unknown: try to infer from the current model.
     if (currentModel) {
       for (const chain of Object.values(this.chains)) {
         if (chain.includes(currentModel)) {
-          return filterAllowed(chain, this.allowedModels);
+          return this.modelHealth.filterChain(
+            filterAllowed(chain, this.allowedModels),
+          );
         }
       }
     }
@@ -379,6 +392,6 @@ export class ForegroundFallbackManager {
         }
       }
     }
-    return filterAllowed(all, this.allowedModels);
+    return this.modelHealth.filterChain(filterAllowed(all, this.allowedModels));
   }
 }

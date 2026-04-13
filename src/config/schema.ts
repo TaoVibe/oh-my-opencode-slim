@@ -249,11 +249,27 @@ export type TodoContinuationConfig = z.infer<
   typeof TodoContinuationConfigSchema
 >;
 
+export const FallbackHealthConfigSchema = z.object({
+  enabled: z.boolean().default(false),
+  failureThreshold: z.number().int().min(1).max(10).default(2),
+  cooldownMs: z.number().int().min(1000).max(3_600_000).default(300_000),
+  maxCooldownMs: z
+    .number()
+    .int()
+    .min(1000)
+    .max(7_200_000)
+    .default(1_800_000),
+  backoffMultiplier: z.number().min(1).max(10).default(2),
+});
+
+export type FallbackHealthConfig = z.infer<typeof FallbackHealthConfigSchema>;
+
 export const FailoverConfigSchema = z.object({
   enabled: z.boolean().default(true),
   timeoutMs: z.number().min(0).default(15000),
   retryDelayMs: z.number().min(0).default(500),
   chains: FallbackChainsSchema.default({}),
+  health: FallbackHealthConfigSchema.optional(),
   retry_on_empty: z
     .boolean()
     .default(true)

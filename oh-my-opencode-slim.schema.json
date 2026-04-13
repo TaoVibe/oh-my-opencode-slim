@@ -569,6 +569,39 @@
             }
           }
         },
+        "health": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": false,
+              "type": "boolean"
+            },
+            "failureThreshold": {
+              "default": 2,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 10
+            },
+            "cooldownMs": {
+              "default": 300000,
+              "type": "integer",
+              "minimum": 1000,
+              "maximum": 3600000
+            },
+            "maxCooldownMs": {
+              "default": 1800000,
+              "type": "integer",
+              "minimum": 1000,
+              "maximum": 7200000
+            },
+            "backoffMultiplier": {
+              "default": 2,
+              "type": "number",
+              "minimum": 1,
+              "maximum": 10
+            }
+          }
+        },
         "retry_on_empty": {
           "default": true,
           "description": "When true (default), empty provider responses are treated as failures, triggering fallback/retry. Set to false to treat them as successes.",
