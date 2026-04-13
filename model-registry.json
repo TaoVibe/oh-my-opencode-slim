@@ -1,25 +1,27 @@
 {
   "version": 1,
-  "updatedAt": "2026-04-13T16:32:58.848Z",
+  "updatedAt": "2026-04-13T23:15:12.029Z",
   "models": {
     "chutes/xiaomimimo/mimo-v2-flash": {
       "model": "chutes/xiaomimimo/mimo-v2-flash",
       "providerID": "chutes",
       "modelID": "xiaomimimo/mimo-v2-flash",
       "firstSeenAt": "2026-04-13T06:54:41.695Z",
-      "lastSeenAt": "2026-04-13T08:02:11.267Z",
-      "lastStatus": "failed",
-      "requestCount": 10,
-      "successCount": 4,
-      "failureCount": 12,
-      "probeCount": 6,
-      "sources": ["probe", "routing", "background", "foreground"],
-      "lastUsedAt": "2026-04-13T08:02:11.267Z",
-      "lastFailureAt": "2026-04-13T08:02:11.267Z",
-      "lastError": "JSON Parse error: Unexpected EOF",
-      "lastLatencyMs": 7,
-      "totalLatencyMs": 35093,
-      "lastProbeAt": "2026-04-13T07:50:10.348Z",
+      "lastSeenAt": "2026-04-13T21:42:33.511Z",
+      "lastStatus": "alive",
+      "requestCount": 36,
+      "successCount": 21,
+      "failureCount": 21,
+      "probeCount": 7,
+      "sources": [
+        "probe",
+        "routing",
+        "background",
+        "foreground"
+      ],
+      "lastUsedAt": "2026-04-13T21:42:33.511Z",
+      "lastSuccessAt": "2026-04-13T21:42:33.511Z",
+      "totalLatencyMs": 1025199,
       "aliases": [
         "MiMo V2 Flash",
         "XiaomiMiMo/MiMo-V2-Flash",
@@ -29,7 +31,10 @@
       "metadata": {
         "provider": "chutes",
         "family": "mimo",
-        "laneFit": ["planning-value", "architecture-value"],
+        "laneFit": [
+          "planning-value",
+          "architecture-value"
+        ],
         "inputUsdPerM": 0.09,
         "outputUsdPerM": 0.29,
         "contextWindow": 262144,
@@ -44,19 +49,22 @@
       "providerID": "chutes",
       "modelID": "qwen/qwen3-coder-next",
       "firstSeenAt": "2026-04-13T06:54:41.724Z",
-      "lastSeenAt": "2026-04-13T07:50:10.366Z",
-      "lastStatus": "failed",
-      "requestCount": 15,
-      "successCount": 14,
+      "lastSeenAt": "2026-04-13T21:44:25.818Z",
+      "lastStatus": "alive",
+      "requestCount": 22,
+      "successCount": 21,
       "failureCount": 4,
-      "probeCount": 6,
-      "sources": ["probe", "routing", "foreground"],
-      "lastUsedAt": "2026-04-13T07:50:10.366Z",
-      "lastFailureAt": "2026-04-13T07:50:10.366Z",
-      "lastError": "JSON Parse error: Unexpected EOF",
-      "lastLatencyMs": 15,
-      "totalLatencyMs": 13885,
-      "lastProbeAt": "2026-04-13T07:50:10.366Z",
+      "probeCount": 7,
+      "sources": [
+        "probe",
+        "routing",
+        "foreground"
+      ],
+      "lastUsedAt": "2026-04-13T21:44:25.818Z",
+      "lastSuccessAt": "2026-04-13T21:44:25.818Z",
+      "lastLatencyMs": 7441,
+      "totalLatencyMs": 21326,
+      "lastProbeAt": "2026-04-13T21:44:25.818Z",
       "aliases": [
         "Qwen/Qwen3-Coder-Next",
         "Qwen3 Coder Next",
@@ -65,7 +73,10 @@
       "metadata": {
         "provider": "chutes",
         "family": "qwen",
-        "laneFit": ["execution-value", "implementation-value"],
+        "laneFit": [
+          "execution-value",
+          "implementation-value"
+        ],
         "inputUsdPerM": 0.07,
         "outputUsdPerM": 0.3,
         "contextWindow": 262144,
@@ -85,16 +96,27 @@
       "successCount": 0,
       "failureCount": 3,
       "probeCount": 2,
-      "sources": ["probe", "background", "routing"],
+      "sources": [
+        "probe",
+        "background",
+        "routing"
+      ],
       "lastFailureAt": "2026-04-13T07:33:05.221Z",
       "lastError": "JSON Parse error: Unexpected EOF",
       "lastLatencyMs": 17,
       "lastProbeAt": "2026-04-13T07:33:05.221Z",
-      "aliases": ["gpt oss 120b TEE", "gpt-oss-120b"],
+      "aliases": [
+        "gpt oss 120b TEE",
+        "gpt-oss-120b"
+      ],
       "metadata": {
         "provider": "chutes",
         "family": "gpt-oss",
-        "laneFit": ["planning-value", "research-value", "execution-value"],
+        "laneFit": [
+          "planning-value",
+          "research-value",
+          "execution-value"
+        ],
         "inputUsdPerM": 0.04,
         "outputUsdPerM": 0.18,
         "contextWindow": 131072,
@@ -112,18 +134,23 @@
       "providerID": "chutes",
       "modelID": "zai-org/glm-5.1",
       "firstSeenAt": "2026-04-13T06:54:41.758Z",
-      "lastSeenAt": "2026-04-13T16:31:25.432Z",
-      "lastStatus": "failed",
-      "requestCount": 41,
-      "successCount": 35,
-      "failureCount": 11,
-      "probeCount": 4,
-      "sources": ["probe", "background", "routing", "foreground"],
-      "lastUsedAt": "2026-04-13T16:31:25.432Z",
-      "lastFailureAt": "2026-04-13T16:31:25.432Z",
-      "lastError": "Prompt timed out after 120000ms",
-      "lastLatencyMs": 120006,
-      "totalLatencyMs": 708897,
+      "lastSeenAt": "2026-04-13T21:42:03.418Z",
+      "lastStatus": "alive",
+      "requestCount": 142,
+      "successCount": 122,
+      "failureCount": 25,
+      "probeCount": 5,
+      "sources": [
+        "probe",
+        "background",
+        "routing",
+        "foreground"
+      ],
+      "lastUsedAt": "2026-04-13T21:42:03.418Z",
+      "lastSuccessAt": "2026-04-13T21:42:03.418Z",
+      "lastLatencyMs": 15070,
+      "totalLatencyMs": 2404007,
+      "lastProbeAt": "2026-04-13T21:42:03.418Z",
       "aliases": [
         "GLM 5.1 TEE",
         "GLM-5.1",
@@ -133,7 +160,10 @@
       "metadata": {
         "provider": "chutes",
         "family": "glm",
-        "laneFit": ["planning-premium", "architecture-premium"],
+        "laneFit": [
+          "planning-premium",
+          "architecture-premium"
+        ],
         "inputUsdPerM": 0.95,
         "outputUsdPerM": 3.15,
         "cacheReadUsdPerM": 0.47,
@@ -149,13 +179,24 @@
       "providerID": "chutes",
       "modelID": "qwen/qwen3-30b-a3b",
       "firstSeenAt": "2026-04-13T06:56:41.899Z",
-      "lastSeenAt": "2026-04-13T08:15:53.402Z",
+      "lastSeenAt": "2026-04-13T21:43:15.992Z",
       "lastStatus": "failed",
-      "requestCount": 12,
-      "successCount": 6,
-      "failureCount": 11,
-      "probeCount": 2,
-      "sources": ["background", "routing", "foreground", "probe"],
+      "requestCount": 14,
+      "successCount": 7,
+      "failureCount": 12,
+      "probeCount": 3,
+      "sources": [
+        "background",
+        "routing",
+        "foreground",
+        "probe"
+      ],
+      "lastUsedAt": "2026-04-13T21:43:15.992Z",
+      "lastFailureAt": "2026-04-13T21:43:15.992Z",
+      "lastError": "empty response",
+      "lastLatencyMs": 1436,
+      "totalLatencyMs": 9508,
+      "lastProbeAt": "2026-04-13T21:43:15.992Z",
       "aliases": [
         "Qwen/Qwen3-30B-A3B",
         "Qwen3 30B A3B",
@@ -164,7 +205,11 @@
       "metadata": {
         "provider": "chutes",
         "family": "qwen",
-        "laneFit": ["planning-cheap", "exploration-cheap", "research-cheap"],
+        "laneFit": [
+          "planning-cheap",
+          "exploration-cheap",
+          "research-cheap"
+        ],
         "inputUsdPerM": 0.06,
         "outputUsdPerM": 0.22,
         "contextWindow": 40960,
@@ -172,27 +217,28 @@
         "supportsTools": true,
         "supportsReasoning": true,
         "catalogUpdatedAt": "2026-01-10"
-      },
-      "lastUsedAt": "2026-04-13T08:15:53.402Z",
-      "lastSuccessAt": "2026-04-13T08:15:52.018Z",
-      "totalLatencyMs": 8072,
-      "lastFailureAt": "2026-04-13T08:15:53.402Z",
-      "lastProbeAt": "2026-04-13T07:51:33.781Z",
-      "lastError": "Empty response from provider",
-      "lastLatencyMs": 1388
+      }
     },
     "chutes/deepseek-ai/deepseek-v3.2": {
       "model": "chutes/deepseek-ai/deepseek-v3.2",
       "providerID": "chutes",
       "modelID": "deepseek-ai/deepseek-v3.2",
       "firstSeenAt": "2026-04-13T06:56:49.295Z",
-      "lastSeenAt": "2026-04-13T07:50:53.956Z",
+      "lastSeenAt": "2026-04-13T21:43:46.107Z",
       "lastStatus": "alive",
-      "requestCount": 11,
-      "successCount": 7,
-      "failureCount": 7,
-      "probeCount": 4,
-      "sources": ["background", "routing", "probe", "foreground"],
+      "requestCount": 19,
+      "successCount": 13,
+      "failureCount": 9,
+      "probeCount": 5,
+      "sources": [
+        "background",
+        "routing",
+        "probe",
+        "foreground"
+      ],
+      "lastUsedAt": "2026-04-13T21:43:46.107Z",
+      "lastSuccessAt": "2026-04-13T21:43:46.107Z",
+      "totalLatencyMs": 205052,
       "aliases": [
         "DeepSeek V3.2 TEE",
         "chutes/deepseek-ai/deepseek-v3.2",
@@ -201,7 +247,11 @@
       "metadata": {
         "provider": "chutes",
         "family": "deepseek",
-        "laneFit": ["planning-value", "review-value", "architecture-value"],
+        "laneFit": [
+          "planning-value",
+          "review-value",
+          "architecture-value"
+        ],
         "inputUsdPerM": 0.28,
         "outputUsdPerM": 0.42,
         "cacheReadUsdPerM": 0.14,
@@ -210,30 +260,29 @@
         "supportsTools": true,
         "supportsReasoning": true,
         "catalogUpdatedAt": "2026-01-10"
-      },
-      "lastUsedAt": "2026-04-13T07:50:53.956Z",
-      "lastSuccessAt": "2026-04-13T07:50:53.956Z",
-      "totalLatencyMs": 55043,
-      "lastFailureAt": "2026-04-13T07:50:53.876Z",
-      "lastProbeAt": "2026-04-13T07:50:53.876Z"
+      }
     },
     "chutes/qwen/qwen3-235b-a22b-instruct-2507": {
       "model": "chutes/qwen/qwen3-235b-a22b-instruct-2507",
       "providerID": "chutes",
       "modelID": "qwen/qwen3-235b-a22b-instruct-2507",
       "firstSeenAt": "2026-04-13T06:56:50.302Z",
-      "lastSeenAt": "2026-04-13T16:29:24.421Z",
-      "lastStatus": "failed",
-      "requestCount": 18,
-      "successCount": 12,
-      "failureCount": 10,
-      "probeCount": 3,
-      "sources": ["background", "routing", "probe", "foreground"],
-      "lastUsedAt": "2026-04-13T16:29:24.421Z",
-      "lastFailureAt": "2026-04-13T16:29:24.421Z",
-      "lastError": "Prompt timed out after 120000ms",
-      "lastLatencyMs": 120008,
-      "totalLatencyMs": 501159,
+      "lastSeenAt": "2026-04-13T21:54:01.183Z",
+      "lastStatus": "alive",
+      "requestCount": 89,
+      "successCount": 79,
+      "failureCount": 14,
+      "probeCount": 4,
+      "sources": [
+        "background",
+        "routing",
+        "probe",
+        "foreground"
+      ],
+      "lastUsedAt": "2026-04-13T21:54:01.183Z",
+      "lastSuccessAt": "2026-04-13T21:54:01.183Z",
+      "lastLatencyMs": 33267,
+      "totalLatencyMs": 1148393,
       "aliases": [
         "Qwen/Qwen3-235B-A22B-Instruct-2507-TEE",
         "Qwen3 235B A22B Instruct 2507 TEE",
@@ -242,7 +291,10 @@
       "metadata": {
         "provider": "chutes",
         "family": "qwen",
-        "laneFit": ["planning-premium", "architecture-premium"],
+        "laneFit": [
+          "planning-premium",
+          "architecture-premium"
+        ],
         "inputUsdPerM": 0.08,
         "outputUsdPerM": 0.55,
         "cacheReadUsdPerM": 0.04,
@@ -258,69 +310,98 @@
       "providerID": "opencode-go",
       "modelID": "minimax-m2.5",
       "firstSeenAt": "2026-04-13T06:58:42.906Z",
-      "lastSeenAt": "2026-04-13T08:17:56.838Z",
-      "lastStatus": "failed",
-      "successCount": 240,
-      "failureCount": 9,
-      "probeCount": 1,
-      "sources": ["background", "foreground", "probe"],
-      "lastFailureAt": "2026-04-13T08:17:56.838Z",
-      "lastSuccessAt": "2026-04-13T08:17:55.336Z",
-      "lastUsedAt": "2026-04-13T08:17:56.838Z",
-      "totalLatencyMs": 908568,
-      "requestCount": 195,
-      "lastProbeAt": "2026-04-13T07:44:55.406Z",
-      "lastError": "Prompt timed out after 120000ms",
-      "lastLatencyMs": 120005
+      "lastSeenAt": "2026-04-13T21:54:50.832Z",
+      "lastStatus": "alive",
+      "successCount": 324,
+      "failureCount": 10,
+      "probeCount": 2,
+      "sources": [
+        "background",
+        "foreground",
+        "probe"
+      ],
+      "lastFailureAt": "2026-04-13T20:53:02.082Z",
+      "lastSuccessAt": "2026-04-13T21:54:50.832Z",
+      "lastUsedAt": "2026-04-13T21:54:50.832Z",
+      "totalLatencyMs": 1389793,
+      "requestCount": 280,
+      "lastProbeAt": "2026-04-13T21:43:14.555Z",
+      "lastLatencyMs": 82925
     },
     "openai/gpt-5.4": {
       "model": "openai/gpt-5.4",
       "providerID": "openai",
       "modelID": "gpt-5.4",
       "firstSeenAt": "2026-04-13T06:58:52.322Z",
-      "lastSeenAt": "2026-04-13T16:32:54.227Z",
+      "lastSeenAt": "2026-04-13T23:15:12.029Z",
       "lastStatus": "alive",
-      "requestCount": 1251,
-      "successCount": 1475,
-      "failureCount": 9,
-      "probeCount": 0,
-      "sources": ["background", "foreground"],
-      "lastUsedAt": "2026-04-13T16:32:54.227Z",
-      "lastSuccessAt": "2026-04-13T16:32:54.227Z",
-      "totalLatencyMs": 1076395,
-      "lastFailureAt": "2026-04-13T16:27:23.409Z",
-      "aliases": ["openai/gpt-5.4"]
+      "requestCount": 5665,
+      "successCount": 5855,
+      "failureCount": 43,
+      "probeCount": 1,
+      "sources": [
+        "background",
+        "foreground",
+        "probe"
+      ],
+      "lastUsedAt": "2026-04-13T23:15:12.029Z",
+      "lastSuccessAt": "2026-04-13T23:15:12.029Z",
+      "totalLatencyMs": 5855668,
+      "lastFailureAt": "2026-04-13T22:48:25.468Z",
+      "aliases": [
+        "openai/gpt-5.4"
+      ],
+      "lastProbeAt": "2026-04-13T21:41:36.082Z"
     },
     "openai/gpt-5.4-mini": {
       "model": "openai/gpt-5.4-mini",
       "providerID": "openai",
       "modelID": "gpt-5.4-mini",
       "firstSeenAt": "2026-04-13T06:59:09.252Z",
-      "lastSeenAt": "2026-04-13T16:27:08.472Z",
+      "lastSeenAt": "2026-04-13T22:49:04.696Z",
       "lastStatus": "alive",
-      "requestCount": 247,
-      "successCount": 323,
-      "failureCount": 1,
-      "probeCount": 0,
-      "sources": ["background", "foreground"],
-      "lastUsedAt": "2026-04-13T16:27:08.472Z",
-      "lastSuccessAt": "2026-04-13T16:27:08.472Z",
-      "totalLatencyMs": 687581,
-      "lastLatencyMs": 17603,
-      "aliases": ["openai/gpt-5.4-mini"]
+      "requestCount": 1429,
+      "successCount": 1492,
+      "failureCount": 14,
+      "probeCount": 1,
+      "sources": [
+        "background",
+        "foreground",
+        "probe"
+      ],
+      "lastUsedAt": "2026-04-13T22:49:04.696Z",
+      "lastSuccessAt": "2026-04-13T22:49:04.696Z",
+      "totalLatencyMs": 4117370,
+      "aliases": [
+        "openai/gpt-5.4-mini"
+      ],
+      "lastFailureAt": "2026-04-13T22:15:15.355Z",
+      "lastProbeAt": "2026-04-13T21:42:41.434Z",
+      "lastLatencyMs": 38228
     },
     "chutes/nousresearch/hermes-4-14b": {
       "model": "chutes/nousresearch/hermes-4-14b",
       "providerID": "chutes",
       "modelID": "nousresearch/hermes-4-14b",
       "firstSeenAt": "2026-04-13T07:19:24.748Z",
-      "lastSeenAt": "2026-04-13T08:15:55.830Z",
+      "lastSeenAt": "2026-04-13T21:43:47.319Z",
       "lastStatus": "failed",
-      "requestCount": 14,
-      "successCount": 7,
-      "failureCount": 9,
-      "probeCount": 4,
-      "sources": ["background", "routing", "probe", "foreground"],
+      "requestCount": 16,
+      "successCount": 8,
+      "failureCount": 10,
+      "probeCount": 5,
+      "sources": [
+        "background",
+        "routing",
+        "probe",
+        "foreground"
+      ],
+      "lastUsedAt": "2026-04-13T21:43:47.319Z",
+      "lastFailureAt": "2026-04-13T21:43:47.319Z",
+      "lastError": "empty response",
+      "lastLatencyMs": 1312,
+      "totalLatencyMs": 10429,
+      "lastProbeAt": "2026-04-13T21:43:47.319Z",
       "aliases": [
         "Hermes 4 14B",
         "NousResearch/Hermes-4-14B",
@@ -329,7 +410,11 @@
       "metadata": {
         "provider": "chutes",
         "family": "nousresearch",
-        "laneFit": ["exploration-cheap", "research-cheap", "triage-cheap"],
+        "laneFit": [
+          "exploration-cheap",
+          "research-cheap",
+          "triage-cheap"
+        ],
         "inputUsdPerM": 0.01,
         "outputUsdPerM": 0.05,
         "contextWindow": 40960,
@@ -337,27 +422,29 @@
         "supportsTools": true,
         "supportsReasoning": true,
         "catalogUpdatedAt": "2026-01-10"
-      },
-      "lastUsedAt": "2026-04-13T08:15:55.830Z",
-      "lastSuccessAt": "2026-04-13T08:15:54.409Z",
-      "totalLatencyMs": 9117,
-      "lastFailureAt": "2026-04-13T08:15:55.830Z",
-      "lastProbeAt": "2026-04-13T07:51:32.537Z",
-      "lastError": "Empty response from provider",
-      "lastLatencyMs": 1425
+      }
     },
     "chutes/qwen/qwen2.5-coder-32b-instruct": {
       "model": "chutes/qwen/qwen2.5-coder-32b-instruct",
       "providerID": "chutes",
       "modelID": "qwen/qwen2.5-coder-32b-instruct",
       "firstSeenAt": "2026-04-13T07:33:05.146Z",
-      "lastSeenAt": "2026-04-13T07:51:36.032Z",
-      "lastStatus": "failed",
-      "requestCount": 2,
-      "successCount": 1,
-      "failureCount": 1,
-      "probeCount": 1,
-      "sources": ["routing", "foreground", "probe"],
+      "lastSeenAt": "2026-04-13T22:15:17.868Z",
+      "lastStatus": "alive",
+      "requestCount": 8,
+      "successCount": 6,
+      "failureCount": 2,
+      "probeCount": 2,
+      "sources": [
+        "routing",
+        "foreground",
+        "probe",
+        "background"
+      ],
+      "lastUsedAt": "2026-04-13T22:15:17.868Z",
+      "lastSuccessAt": "2026-04-13T22:15:17.868Z",
+      "lastLatencyMs": 1503,
+      "totalLatencyMs": 6167,
       "aliases": [
         "Qwen/Qwen2.5-Coder-32B-Instruct",
         "Qwen2.5 Coder 32B Instruct",
@@ -366,7 +453,10 @@
       "metadata": {
         "provider": "chutes",
         "family": "qwen",
-        "laneFit": ["execution-cheap", "fixer-cheap"],
+        "laneFit": [
+          "execution-cheap",
+          "fixer-cheap"
+        ],
         "inputUsdPerM": 0.03,
         "outputUsdPerM": 0.11,
         "contextWindow": 32768,
@@ -374,27 +464,30 @@
         "supportsTools": false,
         "supportsReasoning": false,
         "catalogUpdatedAt": "2026-01-10"
-      },
-      "lastUsedAt": "2026-04-13T07:51:36.032Z",
-      "lastSuccessAt": "2026-04-13T07:51:33.786Z",
-      "totalLatencyMs": 2250,
-      "lastFailureAt": "2026-04-13T07:51:36.032Z",
-      "lastError": "empty response",
-      "lastLatencyMs": 2250,
-      "lastProbeAt": "2026-04-13T07:51:36.032Z"
+      }
     },
     "chutes/deepseek-ai/deepseek-r1-distill-llama-70b": {
       "model": "chutes/deepseek-ai/deepseek-r1-distill-llama-70b",
       "providerID": "chutes",
       "modelID": "deepseek-ai/deepseek-r1-distill-llama-70b",
       "firstSeenAt": "2026-04-13T07:33:05.147Z",
-      "lastSeenAt": "2026-04-13T07:51:13.882Z",
+      "lastSeenAt": "2026-04-13T21:44:18.373Z",
       "lastStatus": "failed",
-      "requestCount": 5,
-      "successCount": 2,
-      "failureCount": 3,
-      "probeCount": 3,
-      "sources": ["routing", "probe", "foreground"],
+      "requestCount": 7,
+      "successCount": 3,
+      "failureCount": 4,
+      "probeCount": 4,
+      "sources": [
+        "routing",
+        "probe",
+        "foreground"
+      ],
+      "lastUsedAt": "2026-04-13T21:44:18.373Z",
+      "lastFailureAt": "2026-04-13T21:44:18.373Z",
+      "lastError": "Prompt timed out after 30000ms",
+      "lastLatencyMs": 30005,
+      "totalLatencyMs": 65025,
+      "lastProbeAt": "2026-04-13T21:44:18.373Z",
       "aliases": [
         "DeepSeek R1 Distill Llama 70B",
         "chutes/deepseek-ai/deepseek-r1-distill-llama-70b",
@@ -403,7 +496,10 @@
       "metadata": {
         "provider": "chutes",
         "family": "deepseek-thinking",
-        "laneFit": ["planning-cheap", "reasoning-cheap"],
+        "laneFit": [
+          "planning-cheap",
+          "reasoning-cheap"
+        ],
         "inputUsdPerM": 0.03,
         "outputUsdPerM": 0.11,
         "contextWindow": 131072,
@@ -411,14 +507,7 @@
         "supportsTools": true,
         "supportsReasoning": true,
         "catalogUpdatedAt": "2026-01-10"
-      },
-      "lastUsedAt": "2026-04-13T07:51:13.882Z",
-      "lastSuccessAt": "2026-04-13T07:50:53.884Z",
-      "totalLatencyMs": 35020,
-      "lastFailureAt": "2026-04-13T07:51:13.882Z",
-      "lastProbeAt": "2026-04-13T07:51:13.882Z",
-      "lastError": "Prompt timed out after 20000ms",
-      "lastLatencyMs": 20003
+      }
     },
     "chutes/unsloth/gemma-3-12b-it": {
       "model": "chutes/unsloth/gemma-3-12b-it",
@@ -431,7 +520,11 @@
       "successCount": 1,
       "failureCount": 2,
       "probeCount": 2,
-      "sources": ["routing", "probe", "foreground"],
+      "sources": [
+        "routing",
+        "probe",
+        "foreground"
+      ],
       "aliases": [
         "chutes/unsloth/gemma-3-12b-it",
         "gemma 3 12b it",
@@ -440,7 +533,10 @@
       "metadata": {
         "provider": "chutes",
         "family": "gemma",
-        "laneFit": ["exploration-cheap", "research-cheap"],
+        "laneFit": [
+          "exploration-cheap",
+          "research-cheap"
+        ],
         "inputUsdPerM": 0.03,
         "outputUsdPerM": 0.1,
         "contextWindow": 131072,
@@ -462,15 +558,22 @@
       "providerID": "chutes",
       "modelID": "openai/gpt-oss-120b",
       "firstSeenAt": "2026-04-13T07:40:40.418Z",
-      "lastSeenAt": "2026-04-13T16:32:58.843Z",
+      "lastSeenAt": "2026-04-13T22:49:55.837Z",
       "lastStatus": "alive",
-      "requestCount": 24,
-      "successCount": 24,
-      "failureCount": 0,
-      "probeCount": 3,
-      "sources": ["routing", "foreground", "probe"],
-      "lastUsedAt": "2026-04-13T16:32:58.843Z",
-      "lastSuccessAt": "2026-04-13T16:32:58.843Z",
+      "requestCount": 143,
+      "successCount": 138,
+      "failureCount": 5,
+      "probeCount": 4,
+      "sources": [
+        "routing",
+        "foreground",
+        "probe",
+        "background"
+      ],
+      "lastUsedAt": "2026-04-13T22:49:55.837Z",
+      "lastSuccessAt": "2026-04-13T22:49:55.837Z",
+      "lastLatencyMs": 89361,
+      "totalLatencyMs": 1037102,
       "aliases": [
         "chutes/openai/gpt-oss-120b",
         "gpt-oss-120b",
@@ -479,7 +582,11 @@
       "metadata": {
         "provider": "chutes",
         "family": "gpt-oss",
-        "laneFit": ["planning-value", "research-value", "execution-value"],
+        "laneFit": [
+          "planning-value",
+          "research-value",
+          "execution-value"
+        ],
         "inputUsdPerM": 0.04,
         "outputUsdPerM": 0.18,
         "contextWindow": 131072,
@@ -487,28 +594,31 @@
         "supportsTools": true,
         "supportsReasoning": true,
         "catalogUpdatedAt": "2026-01-10"
-      },
-      "totalLatencyMs": 14483
+      }
     },
     "opencode/big-pickle": {
       "model": "opencode/big-pickle",
       "providerID": "opencode",
       "modelID": "big-pickle",
       "firstSeenAt": "2026-04-13T07:53:58.886Z",
-      "lastSeenAt": "2026-04-13T16:22:16.728Z",
-      "lastStatus": "failed",
-      "requestCount": 991,
-      "successCount": 987,
-      "failureCount": 4,
+      "lastSeenAt": "2026-04-13T21:00:20.858Z",
+      "lastStatus": "alive",
+      "requestCount": 1314,
+      "successCount": 1309,
+      "failureCount": 5,
       "probeCount": 0,
-      "sources": ["foreground", "background"],
-      "lastUsedAt": "2026-04-13T16:22:16.728Z",
-      "lastSuccessAt": "2026-04-13T16:22:15.849Z",
-      "totalLatencyMs": 138953,
-      "lastFailureAt": "2026-04-13T16:22:16.728Z",
-      "lastError": "Prompt timed out after 30000ms",
-      "lastLatencyMs": 30001,
-      "aliases": ["opencode/big-pickle"]
+      "sources": [
+        "foreground",
+        "background"
+      ],
+      "lastUsedAt": "2026-04-13T21:00:20.858Z",
+      "lastSuccessAt": "2026-04-13T21:00:20.858Z",
+      "totalLatencyMs": 248753,
+      "lastFailureAt": "2026-04-13T20:54:32.063Z",
+      "aliases": [
+        "opencode/big-pickle"
+      ],
+      "lastLatencyMs": 26646
     },
     "opencode/minimax-m2.5-free": {
       "model": "opencode/minimax-m2.5-free",
@@ -521,7 +631,9 @@
       "successCount": 91,
       "failureCount": 0,
       "probeCount": 0,
-      "sources": ["foreground"],
+      "sources": [
+        "foreground"
+      ],
       "lastUsedAt": "2026-04-13T08:26:33.077Z",
       "lastSuccessAt": "2026-04-13T08:26:33.077Z",
       "totalLatencyMs": 0
@@ -537,7 +649,9 @@
       "successCount": 30,
       "failureCount": 0,
       "probeCount": 0,
-      "sources": ["foreground"],
+      "sources": [
+        "foreground"
+      ],
       "lastUsedAt": "2026-04-13T07:58:37.004Z",
       "lastSuccessAt": "2026-04-13T07:58:37.004Z",
       "totalLatencyMs": 0
@@ -553,7 +667,9 @@
       "successCount": 60,
       "failureCount": 0,
       "probeCount": 0,
-      "sources": ["foreground"],
+      "sources": [
+        "foreground"
+      ],
       "lastUsedAt": "2026-04-13T08:18:22.549Z",
       "lastSuccessAt": "2026-04-13T08:18:22.549Z",
       "totalLatencyMs": 0
@@ -563,16 +679,21 @@
       "providerID": "opencode-go",
       "modelID": "kimi-k2.5",
       "firstSeenAt": "2026-04-13T08:19:23.021Z",
-      "lastSeenAt": "2026-04-13T08:19:31.102Z",
+      "lastSeenAt": "2026-04-13T21:43:06.318Z",
       "lastStatus": "alive",
-      "requestCount": 6,
-      "successCount": 6,
+      "requestCount": 13,
+      "successCount": 13,
       "failureCount": 0,
-      "probeCount": 0,
-      "sources": ["foreground"],
-      "lastUsedAt": "2026-04-13T08:19:31.102Z",
-      "lastSuccessAt": "2026-04-13T08:19:31.102Z",
-      "totalLatencyMs": 0
+      "probeCount": 1,
+      "sources": [
+        "foreground",
+        "probe"
+      ],
+      "lastUsedAt": "2026-04-13T21:43:06.318Z",
+      "lastSuccessAt": "2026-04-13T21:43:06.318Z",
+      "totalLatencyMs": 14888,
+      "lastLatencyMs": 14888,
+      "lastProbeAt": "2026-04-13T21:43:06.318Z"
     },
     "github-copilot/gpt-4o": {
       "model": "github-copilot/gpt-4o",
@@ -585,7 +706,9 @@
       "successCount": 4,
       "failureCount": 0,
       "probeCount": 0,
-      "sources": ["foreground"],
+      "sources": [
+        "foreground"
+      ],
       "lastUsedAt": "2026-04-13T08:19:45.684Z",
       "lastSuccessAt": "2026-04-13T08:19:45.684Z",
       "totalLatencyMs": 0
@@ -595,15 +718,17 @@
       "providerID": "openai",
       "modelID": "gpt-5.2",
       "firstSeenAt": "2026-04-13T08:20:06.586Z",
-      "lastSeenAt": "2026-04-13T08:20:19.504Z",
+      "lastSeenAt": "2026-04-13T20:18:43.758Z",
       "lastStatus": "alive",
-      "requestCount": 4,
-      "successCount": 4,
+      "requestCount": 113,
+      "successCount": 113,
       "failureCount": 0,
       "probeCount": 0,
-      "sources": ["foreground"],
-      "lastUsedAt": "2026-04-13T08:20:19.504Z",
-      "lastSuccessAt": "2026-04-13T08:20:19.504Z",
+      "sources": [
+        "foreground"
+      ],
+      "lastUsedAt": "2026-04-13T20:18:43.758Z",
+      "lastSuccessAt": "2026-04-13T20:18:43.758Z",
       "totalLatencyMs": 0
     },
     "opencode/minimax-m2.7-free": {
@@ -611,33 +736,59 @@
       "providerID": "opencode",
       "modelID": "minimax-m2.7-free",
       "firstSeenAt": "2026-04-13T16:19:38.065Z",
-      "lastSeenAt": "2026-04-13T16:22:17.239Z",
+      "lastSeenAt": "2026-04-13T20:54:32.583Z",
       "lastStatus": "failed",
-      "requestCount": 5,
+      "requestCount": 7,
       "successCount": 0,
-      "failureCount": 5,
+      "failureCount": 7,
       "probeCount": 0,
-      "sources": ["background"],
-      "lastUsedAt": "2026-04-13T16:22:17.239Z",
-      "lastFailureAt": "2026-04-13T16:22:17.239Z",
+      "sources": [
+        "background"
+      ],
+      "lastUsedAt": "2026-04-13T20:54:32.583Z",
+      "lastFailureAt": "2026-04-13T20:54:32.583Z",
       "lastError": "JSON Parse error: Unexpected EOF",
-      "lastLatencyMs": 4,
-      "totalLatencyMs": 39
+      "lastLatencyMs": 13,
+      "totalLatencyMs": 62
     },
-    "chutes/openai/gpt-oss-120b-TEE": {
-      "model": "chutes/openai/gpt-oss-120b-TEE",
-      "providerID": "chutes",
-      "modelID": "openai/gpt-oss-120b-TEE",
-      "firstSeenAt": "2026-04-13T16:32:58.848Z",
-      "lastSeenAt": "2026-04-13T16:32:58.848Z",
+    "opencode-go/glm-5.1": {
+      "model": "opencode-go/glm-5.1",
+      "providerID": "opencode-go",
+      "modelID": "glm-5.1",
+      "firstSeenAt": "2026-04-13T21:30:29.587Z",
+      "lastSeenAt": "2026-04-13T22:52:15.884Z",
+      "lastStatus": "alive",
+      "requestCount": 166,
+      "successCount": 165,
+      "failureCount": 1,
+      "probeCount": 2,
+      "sources": [
+        "foreground",
+        "probe"
+      ],
+      "lastUsedAt": "2026-04-13T22:52:15.884Z",
+      "lastSuccessAt": "2026-04-13T22:52:15.884Z",
+      "totalLatencyMs": 36913,
+      "lastFailureAt": "2026-04-13T21:55:09.478Z",
+      "lastProbeAt": "2026-04-13T22:52:15.884Z",
+      "lastLatencyMs": 6906
+    },
+    "github-copilot/claude-sonnet-4.6": {
+      "model": "github-copilot/claude-sonnet-4.6",
+      "providerID": "github-copilot",
+      "modelID": "claude-sonnet-4.6",
+      "firstSeenAt": "2026-04-13T22:46:31.655Z",
+      "lastSeenAt": "2026-04-13T22:46:31.655Z",
       "lastStatus": "alive",
       "requestCount": 1,
       "successCount": 1,
       "failureCount": 0,
       "probeCount": 0,
-      "sources": ["foreground"],
-      "lastUsedAt": "2026-04-13T16:32:58.848Z",
-      "lastSuccessAt": "2026-04-13T16:32:58.848Z",
+      "sources": [
+        "foreground"
+      ],
+      "lastUsedAt": "2026-04-13T22:46:31.655Z",
+      "lastSuccessAt": "2026-04-13T22:46:31.655Z",
       "totalLatencyMs": 0
     }
   }
