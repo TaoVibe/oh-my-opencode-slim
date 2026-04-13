@@ -113,6 +113,79 @@ If you edit this flow, keep all of these properties:
 - session scoping
 - tests for both "same command allowed" and "different command still blocked"
 
+## Config-driven allow exceptions
+
+The plugin reads `opencode.json` permission settings and integrates them with `classify.ts` to avoid duplicate prompts.
+
+### Two-layer architecture
+
+| Layer | Source | Purpose |
+|-------|--------|---------|
+| Native config | `opencode.json` (`bash` permissions) | User-defined allow/ask/deny for glob patterns |
+| Safety floor | `classify.ts` (`DENY_BASH_PATTERNS`) | Hard blocks for always-dangerous commands |
+
+### How they interact
+
+1. `native-permissions.ts` loads bash permissions from `opencode.json` at startup
+2. These patterns are passed to `createToolPolicyHook()` via `ToolPolicyOptions`
+3. In `permission.ask`, the plugin checks if a command matches a config-allowed pattern **before** calling `classifyPermissionRequest()`
+4. If matched, the command is allowed immediately (no prompt)
+5. Config-allowed commands bypass `ASK_BASH_PATTERNS` in `classify.ts`
+
+### Important: DENY is never overridable
+
+`DENY_BASH_PATTERNS` in `classify.ts` are **always blocked** regardless of `opencode.json` settings:
+
+- `rm -rf`
+- `git push --force`
+- `curl | sh`
+- `eval`, `exec`
+- `--no-verify` bypasses
+
+This is intentional — these patterns represent irreversible or credential-exfiltrating operations that should never be user-overridable via config.
+
+### How to allow a command (bypass prompt)
+
+To skip permission prompts for a specific command, add it to `opencode.json`:
+
+**Step 1:** Edit your `opencode.json` permission config:
+
+```jsonc
+{
+  "permission": {
+    "bash": {
+      "xyz *": "allow",    // allow all xyz commands
+      "abc specific": "allow"  // exact match
+    }
+  }
+}
+```
+
+**Step 2:** Restart OpenCode to load the updated config.
+
+**Pattern syntax:**
+| Pattern | Matches |
+|---------|---------|
+| `xyz *` | `xyz` with any arguments (e.g., `xyz foo`, `xyz --verbose`) |
+| `xyz` | exact match only (must be literally `xyz` with no args) |
+| `xyz --flag` | exact match with those exact flags |
+
+**Files to update:**
+- `~/.config/opencode/opencode.json` — main config
+- `~/.config/opencode/profiles/*.json` — profile-specific overrides
+
+### Example: `npx` prompt fix
+
+**Before:** `npx create-next-app` would prompt even if `"npx *": "allow"` was in `opencode.json`
+
+**After:** `permission.ask` pre-check sees `"npx *"` in config allow list → bypasses prompt
+
+### Implementation files
+
+- `src/config/native-permissions.ts` — loads permissions from `opencode.json`
+- `src/hooks/tool-policy/index.ts` — pre-check in `permission.ask` hook (lines 317-330)
+- `src/index.ts` — wires bash permissions to `createToolPolicyHook()`
+
 ## Native ask mode
 
 If you want broad native OpenCode approval prompts for Bash, enable:

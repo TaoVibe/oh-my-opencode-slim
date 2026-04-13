@@ -101,11 +101,27 @@ describe('json-error-recovery hook', () => {
   test('exclude list contains content-heavy tools', () => {
     const expectedExcludedTools: Array<
       (typeof JSON_ERROR_TOOL_EXCLUDE_LIST)[number]
-    > = ['read', 'bash', 'webfetch'];
+    > = [
+      'read',
+      'bash',
+      'webfetch',
+      'model_registry_status',
+      'routing_doctor',
+    ];
 
     const allExpectedToolsIncluded = expectedExcludedTools.every((toolName) =>
       JSON_ERROR_TOOL_EXCLUDE_LIST.includes(toolName),
     );
     expect(allExpectedToolsIncluded).toBe(true);
+  });
+
+  test('does not append reminder for model registry status output', async () => {
+    const output = createOutput('openai/gpt-oss-120b-TEE | error=JSON Parse error: Unexpected EOF');
+
+    await hook['tool.execute.after'](createInput('model_registry_status'), output);
+
+    expect(output.output).toBe(
+      'openai/gpt-oss-120b-TEE | error=JSON Parse error: Unexpected EOF',
+    );
   });
 });

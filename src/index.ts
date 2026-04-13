@@ -6,7 +6,11 @@ import { BackgroundTaskManager, MultiplexerSessionManager } from './background';
 import { loadPluginConfig, type MultiplexerConfig } from './config';
 import { getAllowedModels, isStrictFreeStack } from './config/model-policy';
 import { parseList } from './config/agent-mcps';
-import { applyNativePermissionHints } from './config/native-permissions';
+import {
+  applyNativePermissionHints,
+  loadBashPermissionsFromOpenCodeConfig,
+} from './config/native-permissions';
+import type { BashPermissionPatterns } from './hooks/tool-policy';
 import { CouncilManager } from './council';
 import {
   createApplyPatchHook,
@@ -216,7 +220,13 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     ctx,
     config.disabled_hooks,
   );
-  const toolPolicyHook = createToolPolicyHook(ctx);
+
+  // Load bash permission patterns from opencode.json to bypass ask for allowed commands
+  const bashPermissions = loadBashPermissionsFromOpenCodeConfig();
+  const toolPolicyOptions = {
+    bashPermissions: bashPermissions as BashPermissionPatterns,
+  };
+  const toolPolicyHook = createToolPolicyHook(ctx, toolPolicyOptions);
 
   // Initialize delegate-task retry guidance hook
   const delegateTaskRetryHook = createDelegateTaskRetryHook(ctx);

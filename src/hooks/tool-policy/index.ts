@@ -6,6 +6,53 @@ import type {
   ToolPolicyEvaluation,
 } from './types';
 
+/** Bash command patterns from opencode.json permission config that should bypass ask prompts */
+export type BashPermissionPatterns = {
+  /** Commands that are explicitly allowed (bypass ask) */
+  allow: string[];
+  /** Commands that are explicitly denied */
+  deny: string[];
+};
+
+/**
+ * Convert glob-style permission patterns to regex for fast matching.
+ * Supports: exact match, wildcard (*) at end, or specific patterns.
+ */
+function buildPermissionRegex(patterns: string[]): RegExp | null {
+  if (patterns.length === 0) return null;
+
+  // Build a regex that matches any of the patterns
+  // Supports: "pyright *", "echo foo", "git push --force" (exact), "rm -rf *" (wildcard)
+  const regexParts = patterns.map((pattern) => {
+    // Escape special regex chars except *
+    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&');
+    // Replace * with regex .* for word boundary matching
+    // "pyright *" -> ^pyright\b -> matches "pyright foo" but not "pyrightbar"
+    // Handle trailing wildcard: "pyright *" -> ^pyright\s
+    if (escaped.endsWith('\\ *')) {
+      return '^' + escaped.slice(0, -3) + '\\b';
+    }
+    // Handle mid-pattern wildcards like "git *" -> ^git\b
+    if (escaped.includes('\\ *')) {
+      return '^' + escaped.replace(/\\ \*/g, '\\b.*');
+    }
+    // Exact match
+    return '^' + escaped + '$';
+  });
+
+  return new RegExp(regexParts.join('|'), 'i');
+}
+
+/** Check if a bash command matches any config-allowed pattern */
+function matchesAllowedPattern(
+  command: string,
+  allowPatterns: BashPermissionPatterns,
+): boolean {
+  const regex = buildPermissionRegex(allowPatterns.allow);
+  if (!regex) return false;
+  return regex.test(command);
+}
+
 interface ToolPolicyMetadata {
   toolPolicy?: ToolPolicyEvaluation;
   [key: string]: unknown;
@@ -181,7 +228,15 @@ function detectApprovedIntentCategory(text: string): string | undefined {
   return undefined;
 }
 
-export function createToolPolicyHook(_ctx: PluginInput) {
+export interface ToolPolicyOptions {
+  /** Bash permission patterns from opencode.json config */
+  bashPermissions?: BashPermissionPatterns;
+}
+
+export function createToolPolicyHook(
+  _ctx: PluginInput,
+  options: ToolPolicyOptions = {},
+) {
   const evaluations = new Map<string, ToolPolicyEvaluation>();
   const approvedAsks = new Map<string, ToolPolicyEvaluation>();
   const pendingBlockedBySession = new Map<string, PendingBlockedCommand>();
@@ -256,9 +311,25 @@ export function createToolPolicyHook(_ctx: PluginInput) {
       input: ToolPermissionRequest,
       output: { status: 'ask' | 'deny' | 'allow' },
     ): Promise<void> => {
-      const evaluation = classifyPermissionRequest(input);
       const callID = getCallId(input);
       const command = extractCommandFromContainer(input.metadata);
+
+      // Pre-check: if command matches a config-allowed pattern, bypass ask immediately
+      // This respects opencode.json permission.allow patterns
+      if (command && options.bashPermissions) {
+        if (matchesAllowedPattern(command, options.bashPermissions)) {
+          if (callID) {
+            approvedAsks.set(callID, {
+              decision: 'allow',
+              category: 'config-allowed',
+            });
+          }
+          output.status = 'allow';
+          return;
+        }
+      }
+
+      const evaluation = classifyPermissionRequest(input);
       const sessionID = input.sessionID;
       if (sessionID) {
         const approvedIntent = approvedIntentBySession.get(sessionID);

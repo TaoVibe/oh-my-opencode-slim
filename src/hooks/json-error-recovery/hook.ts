@@ -7,6 +7,10 @@ export const JSON_ERROR_TOOL_EXCLUDE_LIST = [
   'webfetch',
   'grep_app_searchgithub',
   'websearch_web_search_exa',
+  'model_registry_status',
+  'model_registry_probe',
+  'observability_status',
+  'routing_doctor',
 ] as const;
 
 export const JSON_ERROR_PATTERNS = [
