@@ -2,6 +2,13 @@
 
 This document provides guidelines for AI agents operating in this repository.
 
+Scope:
+- This file is for **repo-local implementation rules** for the slim fork.
+- Do **not** put global qde/qdw routing policy here.
+- Global orchestration/routing policy lives in `../AGENTS.md`.
+- Stack/profile behavior lives in `../README.md` and `../profiles/README.md`.
+- This file remains canonical for: build/test commands, commit hook requirements, plugin file layout, tmux/session lifecycle, and repo-specific development workflow.
+
 ## Project Overview
 
 **oh-my-opencode-slim** - A lightweight agent orchestration plugin for OpenCode, a slimmed-down fork of oh-my-opencode. Built with TypeScript, Bun, and Biome.
