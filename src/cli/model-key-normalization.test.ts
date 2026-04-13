@@ -18,4 +18,10 @@ describe('model key normalization', () => {
     const aliases = buildModelKeyAliases('Qwen3 Coder 480B A35B Instruct');
     expect(aliases).toContain('qwen3-coder-480b-a35b-instruct');
   });
+
+  test('adds chutes-prefixed aliases for vendor/model ids', () => {
+    const aliases = buildModelKeyAliases('Qwen/Qwen3-Coder-Next');
+    expect(aliases).toContain('chutes/qwen/qwen3-coder-next');
+    expect(aliases).toContain('qwen/qwen3-coder-next');
+  });
 });

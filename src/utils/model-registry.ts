@@ -2,6 +2,7 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { mkdirSync } from 'node:fs';
 import { getModelRegistryPath } from '../cli/paths';
+import { buildModelKeyAliases } from '../cli/model-key-normalization';
 import { parseModelReference } from './session';
 
 export type RegistryEventSource =
@@ -43,6 +44,8 @@ export interface ModelRegistryData {
   models: Record<string, ModelRegistryEntry>;
 }
 
+export type RouteBiasLane = 'cheap' | 'value' | 'premium';
+
 function recencyScore(timestamp?: string): number {
   if (!timestamp) {
     return 0;
@@ -52,11 +55,151 @@ function recencyScore(timestamp?: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function metadataNumber(entry: ModelRegistryEntry | undefined, key: string): number {
+  const value = entry?.metadata?.[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function metadataBoolean(entry: ModelRegistryEntry | undefined, key: string): boolean {
+  return entry?.metadata?.[key] === true;
+}
+
+function laneMetadataScore(
+  lane: RouteBiasLane | undefined,
+  entry: ModelRegistryEntry | undefined,
+): number {
+  if (!lane || !entry) {
+    return 0;
+  }
+
+  const inputPrice = metadataNumber(entry, 'inputUsdPerM');
+  const outputPrice = metadataNumber(entry, 'outputUsdPerM');
+  const contextWindow = metadataNumber(entry, 'contextWindow');
+  const supportsTools = metadataBoolean(entry, 'supportsTools');
+  const supportsReasoning = metadataBoolean(entry, 'supportsReasoning');
+
+  if (lane === 'cheap') {
+    return contextWindow / 1_000_000 - inputPrice * 4 - outputPrice * 2;
+  }
+
+  if (lane === 'value') {
+    return (
+      contextWindow / 500_000 +
+      (supportsTools ? 1 : 0) +
+      (supportsReasoning ? 0.5 : 0) -
+      inputPrice * 2 -
+      outputPrice
+    );
+  }
+
+  return (
+    contextWindow / 250_000 +
+    (supportsTools ? 1 : 0) +
+    (supportsReasoning ? 1 : 0) -
+    inputPrice * 0.5 -
+    outputPrice * 0.25
+  );
+}
+
 function emptyRegistry(): ModelRegistryData {
   return {
     version: 1,
     updatedAt: new Date(0).toISOString(),
     models: {},
+  };
+}
+
+function getCanonicalRegistryKey(model: string): string {
+  const aliases = buildModelKeyAliases(model);
+  const chutesAlias = aliases.find((alias) => alias.startsWith('chutes/'));
+  if (chutesAlias) {
+    const parsed = parseModelReference(chutesAlias);
+    if (parsed) {
+      return `${parsed.providerID}/${parsed.modelID}`;
+    }
+  }
+  return model;
+}
+
+function normalizeCount(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function normalizeEntry(entry: ModelRegistryEntry): ModelRegistryEntry {
+  return {
+    ...entry,
+    requestCount: normalizeCount(entry.requestCount),
+    successCount: normalizeCount(entry.successCount),
+    failureCount: normalizeCount(entry.failureCount),
+    probeCount: normalizeCount(entry.probeCount),
+    totalLatencyMs:
+      typeof entry.totalLatencyMs === 'number' && Number.isFinite(entry.totalLatencyMs)
+        ? entry.totalLatencyMs
+        : undefined,
+  };
+}
+
+function mergeEntries(
+  left: ModelRegistryEntry | undefined,
+  right: ModelRegistryEntry,
+): ModelRegistryEntry {
+  if (!left) {
+    return normalizeEntry(right);
+  }
+
+  const preferred = recencyScore(left.lastSeenAt) >= recencyScore(right.lastSeenAt) ? left : right;
+  const aliases = new Set([...(left.aliases ?? []), ...(right.aliases ?? []), right.model, left.model]);
+  const sources = new Set([...(left.sources ?? []), ...(right.sources ?? [])]);
+
+  return normalizeEntry({
+    ...preferred,
+    model: preferred.model,
+    aliases: [...aliases].sort(),
+    metadata: {
+      ...(left.metadata ?? {}),
+      ...(right.metadata ?? {}),
+    },
+    firstSeenAt:
+      recencyScore(left.firstSeenAt) <= recencyScore(right.firstSeenAt)
+        ? left.firstSeenAt
+        : right.firstSeenAt,
+    successCount: normalizeCount(left.successCount) + normalizeCount(right.successCount),
+    failureCount: normalizeCount(left.failureCount) + normalizeCount(right.failureCount),
+    probeCount: normalizeCount(left.probeCount) + normalizeCount(right.probeCount),
+    requestCount: normalizeCount(left.requestCount) + normalizeCount(right.requestCount),
+    totalLatencyMs:
+      (typeof left.totalLatencyMs === 'number' ? left.totalLatencyMs : 0) +
+        (typeof right.totalLatencyMs === 'number' ? right.totalLatencyMs : 0) ||
+      undefined,
+    totalInputTokens:
+      ((left.totalInputTokens ?? 0) + (right.totalInputTokens ?? 0)) || undefined,
+    totalOutputTokens:
+      ((left.totalOutputTokens ?? 0) + (right.totalOutputTokens ?? 0)) || undefined,
+    totalTokens: ((left.totalTokens ?? 0) + (right.totalTokens ?? 0)) || undefined,
+    totalCostUsd:
+      ((left.totalCostUsd ?? 0) + (right.totalCostUsd ?? 0)) || undefined,
+    sources: [...sources],
+  });
+}
+
+function normalizeRegistryData(data: ModelRegistryData): ModelRegistryData {
+  const merged: Record<string, ModelRegistryEntry> = {};
+
+  for (const entry of Object.values(data.models ?? {})) {
+    const normalized = normalizeEntry(entry);
+    const key = getCanonicalRegistryKey(normalized.model);
+    merged[key] = mergeEntries(merged[key], {
+      ...normalized,
+      model: key,
+      providerID: parseModelReference(key)?.providerID ?? normalized.providerID,
+      modelID: parseModelReference(key)?.modelID ?? normalized.modelID,
+    });
+  }
+
+  return {
+    version: 1,
+    updatedAt: data.updatedAt,
+    models: merged,
   };
 }
 
@@ -80,26 +223,32 @@ export class ModelRegistryStore {
     }
 
     try {
-      const parsed = JSON.parse(readFileSync(this.filePath, 'utf-8')) as
+      const rawText = readFileSync(this.filePath, 'utf-8');
+      const parsed = JSON.parse(rawText) as
         | ModelRegistryData
         | undefined;
       if (!parsed || typeof parsed !== 'object' || !parsed.models) {
         return emptyRegistry();
       }
-      return {
+      const normalized = normalizeRegistryData({
         version: 1,
         updatedAt:
           typeof parsed.updatedAt === 'string'
             ? parsed.updatedAt
             : new Date().toISOString(),
         models: parsed.models ?? {},
-      };
+      });
+      const normalizedText = `${JSON.stringify(normalized, null, 2)}\n`;
+      if (normalizedText !== rawText) {
+        this.save(normalized);
+      }
+      return normalized;
     } catch {
       return emptyRegistry();
     }
   }
 
-  getBiasedModelChain(models: string[]): string[] {
+  getBiasedModelChain(models: string[], lane?: RouteBiasLane): string[] {
     const data = this.load();
 
     return [...models].sort((left, right) => {
@@ -128,6 +277,12 @@ export class ModelRegistryStore {
       const rightRequests = rightEntry?.requestCount ?? 0;
       if (leftRequests !== rightRequests) {
         return rightRequests - leftRequests;
+      }
+
+      const leftMetadataScore = laneMetadataScore(lane, leftEntry);
+      const rightMetadataScore = laneMetadataScore(lane, rightEntry);
+      if (leftMetadataScore !== rightMetadataScore) {
+        return rightMetadataScore - leftMetadataScore;
       }
 
       return 0;

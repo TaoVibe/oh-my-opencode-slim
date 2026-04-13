@@ -110,7 +110,9 @@ You can specify either:
         ? resolveCategoryRoute(_pluginConfig, resolved.category, resolved.lane)
         : { agent: undefined, lane: undefined, modelChain: [] };
       const resolvedAgent = route.agent ?? resolved.agent;
-      const biasedRouteChain = modelRegistry?.getBiasedModelChain(route.modelChain) ?? route.modelChain;
+      const biasedRouteChain =
+        modelRegistry?.getBiasedModelChain(route.modelChain, route.lane) ??
+        route.modelChain;
 
       // Check agent allowed
       const allowed = manager.getAllowedSubagents(parentSessionId);

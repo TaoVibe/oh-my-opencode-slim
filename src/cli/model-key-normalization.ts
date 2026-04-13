@@ -20,6 +20,33 @@ function cleanupAlias(input: string, preserveSlash: boolean): string {
   return value;
 }
 
+const CHUTES_VENDOR_PREFIXES = [
+  'qwen/',
+  'deepseek-ai/',
+  'zai-org/',
+  'xiaomimimo/',
+  'nousresearch/',
+  'unsloth/',
+  'moonshotai/',
+  'minimaxai/',
+  'mistralai/',
+  'opengvlab/',
+  'nvidia/',
+  'tngtech/',
+  'miromind-ai/',
+  'rednote-hilab/',
+] as const;
+
+function maybePrefixChutes(value: string): string {
+  if (value.startsWith('chutes/')) {
+    return value;
+  }
+
+  return CHUTES_VENDOR_PREFIXES.some((prefix) => value.startsWith(prefix))
+    ? `chutes/${value}`
+    : value;
+}
+
 function addDerivedAliases(seed: string, aliases: Set<string>): void {
   const slashAlias = cleanupAlias(seed, true);
   const flatAlias = cleanupAlias(seed, false);
@@ -49,12 +76,16 @@ export function buildModelKeyAliases(input: string): string[] {
   if (!normalized) return [];
 
   const aliases = new Set<string>();
-  const slashIndex = normalized.indexOf('/');
+  const chutesNormalized = maybePrefixChutes(normalized);
+  const slashIndex = chutesNormalized.indexOf('/');
   const afterProvider =
-    slashIndex >= 0 ? normalized.slice(slashIndex + 1) : normalized;
+    slashIndex >= 0 ? chutesNormalized.slice(slashIndex + 1) : chutesNormalized;
 
-  addDerivedAliases(normalized, aliases);
+  addDerivedAliases(chutesNormalized, aliases);
   addDerivedAliases(afterProvider, aliases);
+  if (chutesNormalized.startsWith('chutes/')) {
+    addDerivedAliases(chutesNormalized.slice('chutes/'.length), aliases);
+  }
 
   return [...aliases].filter((alias) => alias.length > 0);
 }

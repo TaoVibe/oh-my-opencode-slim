@@ -138,7 +138,9 @@ You can specify either:
         const route = resolveCategoryRoute(pluginConfig, category, laneArg);
         resolvedAgent = route.agent ?? agent;
         resolvedLane = route.lane;
-        routeModelChain = modelRegistry?.getBiasedModelChain(route.modelChain) ?? route.modelChain;
+        routeModelChain =
+          modelRegistry?.getBiasedModelChain(route.modelChain, route.lane) ??
+          route.modelChain;
         routePromptAppend = route.promptAppend;
       } else if (agentArg) {
         if (laneArg) {
