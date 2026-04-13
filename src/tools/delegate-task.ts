@@ -5,6 +5,7 @@ import {
 } from '@opencode-ai/plugin';
 import type { BackgroundTaskManager } from '../background';
 import type { PluginConfig } from '../config';
+import type { ModelRegistryStore } from '../utils';
 import { ALL_AGENT_NAMES } from '../config';
 import {
   buildRoutedPrompt,
@@ -34,6 +35,7 @@ export function createDelegateTaskTool(
   manager: BackgroundTaskManager,
   _multiplexerConfig?: MultiplexerConfig,
   _pluginConfig?: PluginConfig,
+  modelRegistry?: ModelRegistryStore,
 ): Record<string, ToolDefinition> {
   const agentNames = ALL_AGENT_NAMES.join(', ');
   const validCategories = getValidCategoriesString();
@@ -108,6 +110,7 @@ You can specify either:
         ? resolveCategoryRoute(_pluginConfig, resolved.category, resolved.lane)
         : { agent: undefined, lane: undefined, modelChain: [] };
       const resolvedAgent = route.agent ?? resolved.agent;
+      const biasedRouteChain = modelRegistry?.getBiasedModelChain(route.modelChain) ?? route.modelChain;
 
       // Check agent allowed
       const allowed = manager.getAllowedSubagents(parentSessionId);
@@ -131,18 +134,18 @@ You can specify either:
         parentSessionId,
         category: resolved.category,
         lane: route.lane,
-        routeModelChain: route.modelChain,
+        routeModelChain: biasedRouteChain,
       });
       const metadata = {
         model: manager.resolveConfiguredModel(
           resolvedAgent,
           parentSessionId,
-          route.modelChain,
+          biasedRouteChain,
         ),
         fallbackChain: manager.resolveFallbackChain(
           resolvedAgent,
           parentSessionId,
-          route.modelChain,
+          biasedRouteChain,
         ),
       };
 

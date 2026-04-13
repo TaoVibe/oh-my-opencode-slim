@@ -132,6 +132,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     backgroundManager,
     multiplexerConfig,
     config,
+    modelRegistry,
   );
 
   // Add delegate_task tool with category support
@@ -140,6 +141,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     backgroundManager,
     multiplexerConfig,
     config,
+    modelRegistry,
   );
 
   // Initialize council tools (only when council is configured)
@@ -702,9 +704,20 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         );
         if (!alreadyInjected) {
           // Prepend the orchestrator prompt to the system array
-          const { ORCHESTRATOR_PROMPT } = await import('./agents/orchestrator');
+          const [{ ORCHESTRATOR_PROMPT }, routingDiagnostics] = await Promise.all([
+            import('./agents/orchestrator'),
+            import('./config'),
+          ]);
+          const routingHealthNotice = routingDiagnostics.buildRoutingHealthNotice(
+            routingDiagnostics.buildRoutingDiagnostics(
+              config,
+              backgroundManager.getModelHealthSnapshots(),
+              modelRegistry.load(),
+            ),
+          );
           output.system[0] =
             ORCHESTRATOR_PROMPT +
+            (routingHealthNotice ? `\n\n${routingHealthNotice}` : '') +
             (output.system[0] ? `\n\n${output.system[0]}` : '');
         }
       }

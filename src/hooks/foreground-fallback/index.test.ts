@@ -190,6 +190,38 @@ describe('ForegroundFallbackManager session.error', () => {
 // ---------------------------------------------------------------------------
 
 describe('ForegroundFallbackManager message.updated', () => {
+  test('records foreground success in model registry', async () => {
+    const { client } = createMockClient();
+    const modelRegistry = {
+      recordSuccess: mock(() => undefined),
+    } as any;
+    const mgr = new ForegroundFallbackManager(
+      client,
+      makeChains(),
+      true,
+      undefined,
+      undefined,
+      modelRegistry,
+    );
+
+    await mgr.handleEvent({
+      type: 'message.updated',
+      properties: {
+        info: {
+          sessionID: 'sess-success',
+          providerID: 'openai',
+          modelID: 'gpt-5.4',
+          role: 'assistant',
+        },
+      },
+    });
+
+    expect(modelRegistry.recordSuccess).toHaveBeenCalledWith({
+      model: 'openai/gpt-5.4',
+      source: 'foreground',
+    });
+  });
+
   test('tracks model from message.updated and falls back on error', async () => {
     const { client, mocks } = createMockClient();
     const mgr = new ForegroundFallbackManager(client, makeChains(), true);

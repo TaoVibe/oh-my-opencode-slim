@@ -212,6 +212,7 @@ describe('observability_status tool', () => {
       const result = await tools.routing_doctor.execute({}, {} as any);
       expect(result).toContain('preferredRegistry=failed');
       expect(result).toContain('effectiveRegistry=alive');
+      expect(result).toContain('requests=1');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

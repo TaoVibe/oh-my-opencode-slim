@@ -151,6 +151,10 @@ export class ForegroundFallbackManager {
           this.sessionModel.set(sessionID, model);
           if (!info.error) {
             this.modelHealth.recordSuccess(model);
+            this.modelRegistry?.recordSuccess({
+              model,
+              source: 'foreground',
+            });
           }
         }
         // Rate-limit on an individual message

@@ -5,6 +5,7 @@ import {
 } from '@opencode-ai/plugin';
 import type { BackgroundTaskManager } from '../background';
 import type { PluginConfig } from '../config';
+import type { ModelRegistryStore } from '../utils';
 import { ALL_AGENT_NAMES, isModelAllowed } from '../config';
 import {
   buildRoutedPrompt,
@@ -45,6 +46,7 @@ export function createBackgroundTools(
   manager: BackgroundTaskManager,
   _multiplexerConfig?: MultiplexerConfig,
   pluginConfig?: PluginConfig,
+  modelRegistry?: ModelRegistryStore,
 ): Record<string, ToolDefinition> {
   const agentNames = ALL_AGENT_NAMES.join(', ');
   const overridableAgents = ALL_AGENT_NAMES.filter(
@@ -136,7 +138,7 @@ You can specify either:
         const route = resolveCategoryRoute(pluginConfig, category, laneArg);
         resolvedAgent = route.agent ?? agent;
         resolvedLane = route.lane;
-        routeModelChain = route.modelChain;
+        routeModelChain = modelRegistry?.getBiasedModelChain(route.modelChain) ?? route.modelChain;
         routePromptAppend = route.promptAppend;
       } else if (agentArg) {
         if (laneArg) {

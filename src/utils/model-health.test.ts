@@ -37,4 +37,38 @@ describe('ModelHealthTracker', () => {
     tracker.recordSuccess('XiaomiMiMo/MiMo-V2-Flash-TEE');
     expect(tracker.isCooling('XiaomiMiMo/MiMo-V2-Flash-TEE')).toBe(false);
   });
+
+  test('JSON parse failures cool a model immediately', () => {
+    const tracker = new ModelHealthTracker({
+      enabled: true,
+      failureThreshold: 2,
+      cooldownMs: 60_000,
+      maxCooldownMs: 60_000,
+      backoffMultiplier: 2,
+    });
+
+    tracker.recordFailure(
+      'Qwen/Qwen3-Coder-Next-TEE',
+      'JSON Parse error: Unexpected EOF',
+    );
+
+    expect(tracker.isCooling('Qwen/Qwen3-Coder-Next-TEE')).toBe(true);
+  });
+
+  test('provider-not-found failures cool a model immediately', () => {
+    const tracker = new ModelHealthTracker({
+      enabled: true,
+      failureThreshold: 2,
+      cooldownMs: 60_000,
+      maxCooldownMs: 60_000,
+      backoffMultiplier: 2,
+    });
+
+    tracker.recordFailure(
+      'XiaomiMiMo/MiMo-V2-Flash-TEE',
+      'Provider not found: XiaomiMiMo',
+    );
+
+    expect(tracker.isCooling('XiaomiMiMo/MiMo-V2-Flash-TEE')).toBe(true);
+  });
 });

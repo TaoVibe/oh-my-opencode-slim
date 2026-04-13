@@ -1,7 +1,13 @@
 import { type PluginInput, type ToolDefinition, tool } from '@opencode-ai/plugin';
 import type { PluginConfig } from '../config';
 import type { ModelRegistryStore } from '../utils';
-import { extractSessionResult, parseModelReference, promptWithTimeout } from '../utils/session';
+import {
+  extractSessionResult,
+  extractUsageMetrics,
+  parseModelReference,
+  promptWithTimeout,
+  type SessionUsageMetrics,
+} from '../utils/session';
 
 const z = tool.schema;
 
@@ -55,6 +61,46 @@ export function createModelRegistryTool(
   config: PluginConfig | undefined,
   registry: ModelRegistryStore,
 ): Record<string, ToolDefinition> {
+  const model_registry_import = tool({
+    description:
+      'Import or seed provider/model metadata into the persisted registry. Use this for catalog snapshots such as pricing, context, capabilities, or aliases.',
+    args: {
+      entries: z.array(
+        z.object({
+          model: z.string().describe('Canonical provider/model id'),
+          aliases: z.array(z.string()).optional().describe('Optional alias ids/names'),
+          metadata: z.record(z.string(), z.unknown()).optional().describe('Arbitrary catalog metadata'),
+        }),
+      ),
+    },
+    async execute(args) {
+      let imported = 0;
+      let skipped = 0;
+      const lines = ['Model Registry Import', `Path: ${registry.getPath()}`, ''];
+
+      for (const entry of args.entries) {
+        const model = entry.model.trim();
+        if (!parseModelReference(model)) {
+          skipped += 1;
+          lines.push(`${entry.model} | skipped | invalid model format`);
+          continue;
+        }
+
+        registry.upsertMetadata({
+          model,
+          aliases: entry.aliases?.map((alias) => alias.trim()).filter(Boolean),
+          metadata: entry.metadata,
+          source: 'routing',
+        });
+        imported += 1;
+        lines.push(`${model} | imported`);
+      }
+
+      lines.splice(3, 0, `Imported: ${imported}`, `Skipped: ${skipped}`);
+      return lines.join('\n');
+    },
+  });
+
   const model_registry_status = tool({
     description: 'Show persisted model registry summary and recent health/probe data.',
     args: {
@@ -85,11 +131,24 @@ export function createModelRegistryTool(
 
       for (const entry of entries) {
         lines.push(
-          `${entry.model} | status=${entry.lastStatus} | probes=${entry.probeCount} | ok=${entry.successCount} | fail=${entry.failureCount}`,
+          `${entry.model} | status=${entry.lastStatus} | requests=${entry.requestCount} | probes=${entry.probeCount} | ok=${entry.successCount} | fail=${entry.failureCount}`,
         );
         lines.push(
           `  lastSeen=${entry.lastSeenAt}${entry.lastProbeAt ? ` | lastProbe=${entry.lastProbeAt}` : ''}${entry.lastError ? ` | error=${entry.lastError}` : ''}`,
         );
+        if (
+          entry.totalInputTokens !== undefined ||
+          entry.totalOutputTokens !== undefined ||
+          entry.totalTokens !== undefined ||
+          entry.totalCostUsd !== undefined
+        ) {
+          lines.push(
+            `  usage=input:${entry.totalInputTokens ?? 0} output:${entry.totalOutputTokens ?? 0} total:${entry.totalTokens ?? 0} costUsd:${entry.totalCostUsd ?? 0}`,
+          );
+        }
+        if (entry.metadata && Object.keys(entry.metadata).length > 0) {
+          lines.push(`  metadata=${JSON.stringify(entry.metadata)}`);
+        }
       }
 
       return lines.join('\n');
@@ -154,8 +213,9 @@ export function createModelRegistryTool(
           continue;
         }
 
+        let usage: SessionUsageMetrics | undefined;
         try {
-          await promptWithTimeout(
+          const promptResult = await promptWithTimeout(
             ctx.client,
             {
               responseStyle: 'data',
@@ -170,6 +230,7 @@ export function createModelRegistryTool(
             },
             timeoutMs,
           );
+          usage = extractUsageMetrics(promptResult);
 
           const result = await extractSessionResult(ctx.client, sessionId, {
             includeReasoning: false,
@@ -183,6 +244,7 @@ export function createModelRegistryTool(
             source: 'probe',
             probe: true,
             latencyMs: Date.now() - startedAt,
+            usage,
           });
           alive += 1;
           lines.push(`${model} | alive | ${Date.now() - startedAt}ms`);
@@ -194,6 +256,7 @@ export function createModelRegistryTool(
             probe: true,
             error: message,
             latencyMs: Date.now() - startedAt,
+            usage,
           });
           failed += 1;
           lines.push(`${model} | failed | ${message}`);
@@ -207,5 +270,5 @@ export function createModelRegistryTool(
     },
   });
 
-  return { model_registry_status, model_registry_probe };
+  return { model_registry_import, model_registry_status, model_registry_probe };
 }

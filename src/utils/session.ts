@@ -55,10 +55,9 @@ export async function promptWithTimeout(
   client: OpencodeClient,
   args: Parameters<OpencodeClient['session']['prompt']>[0],
   timeoutMs: number,
-): Promise<void> {
+): Promise<Awaited<ReturnType<OpencodeClient['session']['prompt']>>> {
   if (timeoutMs <= 0) {
-    await client.session.prompt(args);
-    return;
+    return await client.session.prompt(args);
   }
 
   const sessionId = args.path.id;
@@ -68,7 +67,7 @@ export async function promptWithTimeout(
     const promptPromise = client.session.prompt(args);
     promptPromise.catch(() => {});
 
-    await Promise.race([
+    return await Promise.race([
       promptPromise,
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => {
@@ -90,6 +89,77 @@ export async function promptWithTimeout(
 export interface SessionExtractionResult {
   text: string;
   empty: boolean;
+}
+
+export interface SessionUsageMetrics {
+  inputTokens?: number;
+  outputTokens?: number;
+  totalTokens?: number;
+  costUsd?: number;
+}
+
+function extractNumber(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' ? (value as Record<string, unknown>) : undefined;
+}
+
+export function extractUsageMetrics(payload: unknown): SessionUsageMetrics | undefined {
+  const root = asRecord(payload);
+  if (!root) {
+    return undefined;
+  }
+
+  const usage = asRecord(root.usage) ?? asRecord(asRecord(root.data)?.usage);
+  const cost = asRecord(root.cost) ?? asRecord(asRecord(root.data)?.cost);
+  const cache = cost ? asRecord(cost.cache) : undefined;
+
+  const inputTokens =
+    extractNumber(usage?.inputTokens) ??
+    extractNumber(usage?.input_tokens) ??
+    extractNumber(usage?.promptTokens) ??
+    extractNumber(usage?.prompt_tokens);
+
+  const outputTokens =
+    extractNumber(usage?.outputTokens) ??
+    extractNumber(usage?.output_tokens) ??
+    extractNumber(usage?.completionTokens) ??
+    extractNumber(usage?.completion_tokens);
+
+  const totalTokens =
+    extractNumber(usage?.totalTokens) ??
+    extractNumber(usage?.total_tokens) ??
+    ((inputTokens ?? 0) + (outputTokens ?? 0) > 0
+      ? (inputTokens ?? 0) + (outputTokens ?? 0)
+      : undefined);
+
+  const costInput = cost ? (extractNumber(cost.input) ?? 0) : 0;
+  const costOutput = cost ? (extractNumber(cost.output) ?? 0) : 0;
+  const costCacheRead = cache ? (extractNumber(cache.read) ?? 0) : 0;
+  const costCacheWrite = cache ? (extractNumber(cache.write) ?? 0) : 0;
+  const summedCost = costInput + costOutput + costCacheRead + costCacheWrite;
+  const costUsd =
+    extractNumber(cost?.usd) ??
+    extractNumber(cost?.total) ??
+    (summedCost > 0 ? summedCost : undefined);
+
+  if (
+    inputTokens === undefined &&
+    outputTokens === undefined &&
+    totalTokens === undefined &&
+    !Number.isFinite(costUsd)
+  ) {
+    return undefined;
+  }
+
+  return {
+    inputTokens,
+    outputTokens,
+    totalTokens,
+    costUsd: Number.isFinite(costUsd) ? costUsd : undefined,
+  };
 }
 
 /**

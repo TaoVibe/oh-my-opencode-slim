@@ -32,10 +32,12 @@ import {
   ModelHealthTracker,
   resolveAgentVariant,
 } from '../utils';
+import { extractUsageMetrics } from '../utils/session';
 import { log } from '../utils/logger';
 import {
   extractSessionResult,
   type PromptBody,
+  type SessionUsageMetrics,
   parseModelReference,
   promptWithTimeout,
 } from '../utils/session';
@@ -541,6 +543,7 @@ export class BackgroundTaskManager {
         const model = attemptModels[i];
         const modelLabel = model ?? 'default-model';
         const startedAt = Date.now();
+        let usage: SessionUsageMetrics | undefined;
         try {
           const body: PromptBody = {
             ...basePromptBody,
@@ -562,7 +565,7 @@ export class BackgroundTaskManager {
             );
           }
 
-          await promptWithTimeout(
+          const promptResult = await promptWithTimeout(
             this.client,
             {
               path: { id: sessionId },
@@ -571,6 +574,7 @@ export class BackgroundTaskManager {
             },
             timeoutMs,
           );
+          usage = extractUsageMetrics(promptResult);
 
           // Detect silent empty responses (e.g. provider rate-limited
           // without error). When retry_on_empty is enabled (default),
@@ -586,6 +590,7 @@ export class BackgroundTaskManager {
               model,
               source: 'background',
               latencyMs: Date.now() - startedAt,
+              usage,
             });
           }
           this.completeTask(task, 'completed', extraction.text);
@@ -601,6 +606,7 @@ export class BackgroundTaskManager {
               source: 'background',
               error: msg,
               latencyMs: Date.now() - startedAt,
+              usage,
             });
           }
           log(`[background-manager] model failed: ${modelLabel} — ${msg}`, {

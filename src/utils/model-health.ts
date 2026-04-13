@@ -20,7 +20,14 @@ function classifyFailure(message: string): 'immediate' | 'transient' | 'other' {
   if (
     text.includes('timed out') ||
     text.includes('timeout') ||
-    text.includes('empty response')
+    text.includes('empty response') ||
+    text.includes('json parse error') ||
+    text.includes('unexpected eof') ||
+    text.includes('provider not found') ||
+    text.includes('unknown provider') ||
+    text.includes('invalid provider') ||
+    text.includes('model not found') ||
+    text.includes('unknown model')
   ) {
     return 'immediate';
   }

@@ -56,8 +56,12 @@ Returns:
     args: {},
     async execute() {
       const modelHealth = backgroundManager.getModelHealthSnapshots();
-      const routeDiagnostics = buildRoutingDiagnostics(pluginConfig, modelHealth);
       const registry = modelRegistry?.load();
+      const routeDiagnostics = buildRoutingDiagnostics(
+        pluginConfig,
+        modelHealth,
+        registry,
+      );
       const pluginStartedAt = runtimeMeta?.pluginStartedAt
         ? Date.parse(runtimeMeta.pluginStartedAt)
         : Number.NaN;
@@ -123,7 +127,7 @@ Returns:
           if (item.preferredModel && registry?.models[item.preferredModel]) {
             const entry = registry.models[item.preferredModel];
             lines.push(
-              `  preferredRegistry=${entry.lastStatus} | lastSeen=${entry.lastSeenAt}`,
+              `  preferredRegistry=${entry.lastStatus} | lastSeen=${entry.lastSeenAt} | requests=${entry.requestCount}`,
             );
           }
         }
@@ -139,14 +143,17 @@ Returns:
           if (item.preferredModel && registry?.models[item.preferredModel]) {
             const entry = registry.models[item.preferredModel];
             lines.push(
-              `  preferredRegistry=${entry.lastStatus} | lastSeen=${entry.lastSeenAt}`,
+              `  preferredRegistry=${entry.lastStatus} | lastSeen=${entry.lastSeenAt} | requests=${entry.requestCount}`,
             );
           }
           if (item.effectiveModel && registry?.models[item.effectiveModel]) {
             const entry = registry.models[item.effectiveModel];
             lines.push(
-              `  effectiveRegistry=${entry.lastStatus} | lastSeen=${entry.lastSeenAt}`,
+              `  effectiveRegistry=${entry.lastStatus} | lastSeen=${entry.lastSeenAt} | requests=${entry.requestCount}`,
             );
+          }
+          if (item.recentFailedModels.length > 0) {
+            lines.push(`  recentFailed=${formatList(item.recentFailedModels)}`);
           }
           if (item.cooledModels.length > 0) {
             lines.push(`  cooled=${formatList(item.cooledModels)}`);
@@ -202,7 +209,11 @@ Returns:
         ? backgroundManager.getSessionAgentModelOverrides(currentSessionId)
         : {};
       const modelHealth = backgroundManager.getModelHealthSnapshots();
-      const routeDiagnostics = buildRoutingDiagnostics(pluginConfig, modelHealth);
+      const routeDiagnostics = buildRoutingDiagnostics(
+        pluginConfig,
+        modelHealth,
+        modelRegistry?.load(),
+      );
       const latestConfigMtime =
         runtimeMeta?.latestConfigMtime ?? getLatestMtime(runtimeMeta?.configPaths);
       const latestBuildMtime =
@@ -286,6 +297,9 @@ Returns:
           );
           lines.push(`  configured=${formatList(item.configuredModels)}`);
           lines.push(`  allowed=${formatList(item.allowedModels)}`);
+          if (item.recentFailedModels.length > 0) {
+            lines.push(`  recentFailed=${formatList(item.recentFailedModels)}`);
+          }
           if (item.cooledModels.length > 0) {
             lines.push(`  cooled=${formatList(item.cooledModels)}`);
           }

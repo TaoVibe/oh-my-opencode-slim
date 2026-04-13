@@ -46,7 +46,41 @@ describe('model registry tools', () => {
 
       const status = await tools.model_registry_status.execute({}, {} as any);
       expect(status).toContain('Model Registry');
-      expect(status).toContain('openai/gpt-5.4 | status=alive');
+      expect(status).toContain('openai/gpt-5.4 | status=alive | requests=1');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  test('imports metadata into registry', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'omo-model-tool-'));
+    const store = new ModelRegistryStore(join(dir, 'model-registry.json'));
+
+    try {
+      const tools = createModelRegistryTool(
+        { directory: '/tmp/project', client: {} } as any,
+        undefined,
+        store,
+      );
+
+      const result = await tools.model_registry_import.execute(
+        {
+          entries: [
+            {
+              model: 'Qwen/Qwen3-Coder-Next',
+              aliases: ['Qwen3 Coder Next'],
+              metadata: { provider: 'chutes', inputUsdPerM: 0.07, outputUsdPerM: 0.3 },
+            },
+          ],
+        },
+        {} as any,
+      );
+
+      expect(result).toContain('Imported: 1');
+
+      const status = await tools.model_registry_status.execute({}, {} as any);
+      expect(status).toContain('Qwen/Qwen3-Coder-Next');
+      expect(status).toContain('"inputUsdPerM":0.07');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
