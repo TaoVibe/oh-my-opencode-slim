@@ -18,14 +18,15 @@ import {
   createChatHeadersHook,
   createClaudeCodeHooksHook,
   createDelegateTaskRetryHook,
+  ForegroundFallbackManager,
   createFilterAvailableSkillsHook,
   createIntentRouterHook,
   createJsonErrorRecoveryHook,
   createPhaseReminderHook,
   createPostFileToolNudgeHook,
+  createReviewerOutputValidateHook,
   createTodoContinuationHook,
   createToolPolicyHook,
-  ForegroundFallbackManager,
 } from './hooks';
 import { createInterviewManager } from './interview';
 import { createBuiltinMcps } from './mcp';
@@ -230,6 +231,8 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
   // Initialize delegate-task retry guidance hook
   const delegateTaskRetryHook = createDelegateTaskRetryHook(ctx);
+
+  const reviewerOutputValidateHook = createReviewerOutputValidateHook(ctx);
 
   const applyPatchHook = createApplyPatchHook(ctx);
 
@@ -791,6 +794,11 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       );
 
       await delegateTaskRetryHook['tool.execute.after'](
+        input as { tool: string },
+        output as { output: unknown },
+      );
+
+      await reviewerOutputValidateHook['tool.execute.after'](
         input as { tool: string },
         output as { output: unknown },
       );

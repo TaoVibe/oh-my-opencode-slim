@@ -275,6 +275,14 @@ Returns:
           lines.push(
             `${task.id} | ${task.agent} | ${task.status} | ${task.description}`,
           );
+          if (task.completedAt) {
+            lines.push(`  completedAt=${task.completedAt}`);
+          }
+          if (task.status === 'completed') {
+            lines.push(
+              `  resultFetched=${task.resultConsumedAt ? task.resultConsumedAt : 'no'}`,
+            );
+          }
           lines.push(`  model=${task.configuredModel ?? 'unknown'}`);
           lines.push(`  variant=${task.variant ?? 'none'}`);
           lines.push(

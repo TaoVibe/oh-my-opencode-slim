@@ -155,3 +155,48 @@ describe('session_agent_model tool', () => {
     );
   });
 });
+
+describe('background_output tool', () => {
+  test('marks completed result as consumed on fetch', async () => {
+    let markedTaskId: string | null = null;
+    const completedAt = new Date('2026-04-12T00:00:05.000Z');
+    const startedAt = new Date('2026-04-12T00:00:00.000Z');
+    const manager = {
+      isAgentAllowed: () => true,
+      getAllowedSubagents: () => ['explorer'],
+      launch: () => ({ id: 'bg_1', status: 'pending' }),
+      resolveConfiguredModel: () => 'openai/gpt-5.4-mini',
+      resolveFallbackChain: () => ['openai/gpt-5.4-mini'],
+      getResult: () => ({
+        id: 'bg_done',
+        description: 'Review config drift',
+        agent: 'oracle',
+        status: 'completed',
+        result: 'PASS',
+        startedAt,
+        completedAt,
+      }),
+      markResultConsumed: (taskId: string) => {
+        markedTaskId = taskId;
+      },
+      waitForCompletion: async () => null,
+      cancel: () => 0,
+      setSessionAgentModelOverride: () => {},
+      clearSessionAgentModelOverride: () => {},
+      getSessionAgentModelOverrides: () => ({}),
+    } as any;
+
+    const tools = createBackgroundTools({} as any, manager);
+
+    const result = await tools.background_output.execute(
+      { task_id: 'bg_done' },
+      {} as any,
+    );
+
+    expect(result).toContain('Task: bg_done');
+    expect(result).toContain('Agent: oracle');
+    expect(result).toContain('Status: completed');
+    expect(result).toContain('PASS');
+    expect(markedTaskId).toBe('bg_done');
+  });
+});

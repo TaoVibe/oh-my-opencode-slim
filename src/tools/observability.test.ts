@@ -160,6 +160,59 @@ describe('observability_status tool', () => {
     expect(result).toContain('Freshness: stale session detected');
   });
 
+  test('shows completed task fetch status when included', async () => {
+    const tools = createObservabilityTool(
+      {
+        getTaskSnapshots: () => [
+          {
+            id: 'bg_done',
+            sessionId: 'session-2',
+            description: 'Review routing policy',
+            agent: 'oracle',
+            status: 'completed',
+            parentSessionId: 'parent-1',
+            startedAt: '2026-04-12T00:00:00.000Z',
+            completedAt: '2026-04-12T00:00:05.000Z',
+            resultConsumedAt: '2026-04-12T00:00:07.000Z',
+            configuredModel: 'opencode-go/glm-5.1',
+            variant: undefined,
+            category: 'architecture',
+            lane: 'value',
+            routeModelChain: ['opencode-go/glm-5.1', 'openai/gpt-5.4'],
+            fallbackChain: ['opencode-go/glm-5.1', 'openai/gpt-5.4'],
+          },
+        ],
+        getSessionAgentModelOverrides: () => ({}),
+        getModelHealthSnapshots: () => [],
+      } as any,
+      {
+        getTrackedSessions: () => [],
+      } as any,
+      {
+        routing: {
+          categories: {
+            architecture: {
+              value: {
+                model: ['opencode-go/glm-5.1', 'openai/gpt-5.4'],
+              },
+            },
+          },
+        },
+      } as any,
+    );
+
+    const result = await tools.observability_status.execute(
+      {
+        include_completed: true,
+      },
+      { sessionID: 'parent-1' } as any,
+    );
+
+    expect(result).toContain('bg_done | oracle | completed | Review routing policy');
+    expect(result).toContain('completedAt=2026-04-12T00:00:05.000Z');
+    expect(result).toContain('resultFetched=2026-04-12T00:00:07.000Z');
+  });
+
   test('routing_doctor includes registry state for preferred/effective models', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'omo-obs-reg-'));
     const store = new ModelRegistryStore(join(dir, 'model-registry.json'));

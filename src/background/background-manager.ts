@@ -67,6 +67,7 @@ export interface BackgroundTask {
   parentSessionId: string; // Parent session ID for notifications
   startedAt: Date; // Task creation timestamp
   completedAt?: Date; // Task completion/failure timestamp
+  resultConsumedAt?: Date; // First time parent fetched a completed result
   prompt: string; // Initial prompt
   category?: string; // Source routing category (if any)
   lane?: string; // Source routing lane (if any)
@@ -94,6 +95,8 @@ export interface BackgroundTaskSnapshot {
   status: BackgroundTask['status'];
   parentSessionId: string;
   startedAt: string;
+  completedAt?: string;
+  resultConsumedAt?: string;
   configuredModel?: string;
   variant?: string;
   fallbackChain: string[];
@@ -816,6 +819,19 @@ export class BackgroundTaskManager {
     return this.tasks.get(taskId) ?? null;
   }
 
+  markResultConsumed(taskId: string): BackgroundTask | null {
+    const task = this.tasks.get(taskId) ?? null;
+    if (!task || task.status !== 'completed') {
+      return task;
+    }
+
+    if (!task.resultConsumedAt) {
+      task.resultConsumedAt = new Date();
+    }
+
+    return task;
+  }
+
   getTaskSnapshots(): BackgroundTaskSnapshot[] {
     return Array.from(this.tasks.values()).map((task) => ({
       id: task.id,
@@ -825,6 +841,8 @@ export class BackgroundTaskManager {
       status: task.status,
       parentSessionId: task.parentSessionId,
       startedAt: task.startedAt.toISOString(),
+      completedAt: task.completedAt?.toISOString(),
+      resultConsumedAt: task.resultConsumedAt?.toISOString(),
       configuredModel: this.resolveConfiguredModel(task.agent, task.parentSessionId),
       variant: this.resolveConfiguredVariant(task.agent, task.parentSessionId),
       fallbackChain: this.resolveFallbackChain(task.agent, task.parentSessionId),

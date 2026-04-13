@@ -13,5 +13,6 @@ export { createIntentRouterHook } from './intent-router';
 export { createJsonErrorRecoveryHook } from './json-error-recovery';
 export { createPhaseReminderHook } from './phase-reminder';
 export { createPostFileToolNudgeHook } from './post-file-tool-nudge';
+export { createReviewerOutputValidateHook } from './reviewer-output-validate';
 export { createTodoContinuationHook } from './todo-continuation';
 export { createToolPolicyHook } from './tool-policy';

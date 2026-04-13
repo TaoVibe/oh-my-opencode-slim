@@ -322,6 +322,7 @@ Returns: results if completed, error if failed, status if running.`,
 
       let output = `Task: ${task.id}
  Description: ${task.description}
+ Agent: ${task.agent}
  Status: ${task.status}
  Duration: ${duration}
 
@@ -331,6 +332,7 @@ Returns: results if completed, error if failed, status if running.`,
 
       // Include task result or error based on status
       if (task.status === 'completed' && task.result != null) {
+        manager.markResultConsumed(taskId);
         output += task.result;
       } else if (task.status === 'failed') {
         output += `Error: ${task.error}`;
