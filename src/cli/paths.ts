@@ -97,6 +97,21 @@ export function ensureConfigDir(): void {
   }
 }
 
+export function getSlimStateDir(): string {
+  return join(getConfigDir(), 'oh-my-opencode-slim');
+}
+
+export function ensureSlimStateDir(): void {
+  const dir = getSlimStateDir();
+  if (!existsSync(dir)) {
+    mkdirSync(dir, { recursive: true });
+  }
+}
+
+export function getModelRegistryPath(): string {
+  return join(getSlimStateDir(), 'model-registry.json');
+}
+
 /**
  * Ensure the directory for OpenCode's main config file exists.
  */

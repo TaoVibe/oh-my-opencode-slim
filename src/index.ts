@@ -32,6 +32,7 @@ import {
   createBackgroundTools,
   createCouncilTool,
   createDelegateTaskTool,
+  createModelRegistryTool,
   createObservabilityTool,
   createWebfetchTool,
   lsp_diagnostics,
@@ -41,11 +42,13 @@ import {
   setUserLspConfig,
 } from './tools';
 import { log } from './utils/logger';
+import { ModelRegistryStore } from './utils';
 import { getConfigSearchDirs } from './cli/paths';
 
 const OhMyOpenCodeLite: Plugin = async (ctx) => {
   const pluginStartedAt = new Date().toISOString();
   const config = loadPluginConfig(ctx.directory);
+  const modelRegistry = new ModelRegistryStore();
   const agentDefs = createAgents(config);
   const agents = getAgentConfigs(config);
 
@@ -122,6 +125,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     ctx,
     multiplexerConfig,
     config,
+    modelRegistry,
   );
   const backgroundTools = createBackgroundTools(
     ctx,
@@ -175,6 +179,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       ],
       buildArtifactPaths: [fileURLToPath(import.meta.url)],
     },
+    modelRegistry,
   );
 
   // Initialize auto-update checker hook
@@ -226,7 +231,9 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     config.fallback?.enabled !== false && Object.keys(runtimeChains).length > 0,
     allowedModels,
     config.fallback?.health,
+    modelRegistry,
   );
+  const modelRegistryTools = createModelRegistryTool(ctx, config, modelRegistry);
 
   // Initialize todo-continuation hook (opt-in auto-continue for incomplete todos)
   const todoContinuationHook = createTodoContinuationHook(ctx, {
@@ -245,6 +252,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     tool: {
       ...backgroundTools,
       ...delegateTaskTools,
+      ...modelRegistryTools,
       ...observabilityTools,
       ...councilTools,
       webfetch,

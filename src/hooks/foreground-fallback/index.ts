@@ -18,6 +18,7 @@ import type { PluginInput } from '@opencode-ai/plugin';
 import type { FallbackHealthConfig } from '../../config/schema';
 import { log } from '../../utils/logger';
 import { ModelHealthTracker } from '../../utils/model-health';
+import { ModelRegistryStore } from '../../utils/model-registry';
 
 type OpencodeClient = PluginInput['client'];
 
@@ -113,6 +114,7 @@ export class ForegroundFallbackManager {
     private readonly enabled: boolean,
     private readonly allowedModels?: ReadonlySet<string>,
     healthConfig?: FallbackHealthConfig,
+    private readonly modelRegistry?: ModelRegistryStore,
   ) {
     this.modelHealth = new ModelHealthTracker(healthConfig);
   }
@@ -242,6 +244,13 @@ export class ForegroundFallbackManager {
       const currentModel = this.sessionModel.get(sessionID);
       const agentName = this.sessionAgent.get(sessionID);
       this.modelHealth.recordFailure(currentModel, 'rate limit exceeded');
+      if (currentModel) {
+        this.modelRegistry?.recordFailure({
+          model: currentModel,
+          source: 'foreground',
+          error: 'rate limit exceeded',
+        });
+      }
       const chain = this.resolveChain(agentName, currentModel);
       if (!chain.length) {
         log('[foreground-fallback] no chain configured', {

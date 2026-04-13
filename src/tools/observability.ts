@@ -6,6 +6,7 @@ import type {
 } from '../background';
 import type { PluginConfig } from '../config';
 import { buildRoutingDiagnostics } from '../config';
+import type { ModelRegistryStore } from '../utils';
 
 const z = tool.schema;
 
@@ -42,6 +43,7 @@ export function createObservabilityTool(
   multiplexerSessionManager: MultiplexerSessionManager,
   pluginConfig?: PluginConfig,
   runtimeMeta?: RuntimeObservabilityMeta,
+  modelRegistry?: ModelRegistryStore,
 ): Record<string, ToolDefinition> {
   const routing_doctor = tool({
     description: `Run doctor-style checks for routing freshness and degraded model chains.
@@ -55,6 +57,7 @@ Returns:
     async execute() {
       const modelHealth = backgroundManager.getModelHealthSnapshots();
       const routeDiagnostics = buildRoutingDiagnostics(pluginConfig, modelHealth);
+      const registry = modelRegistry?.load();
       const pluginStartedAt = runtimeMeta?.pluginStartedAt
         ? Date.parse(runtimeMeta.pluginStartedAt)
         : Number.NaN;
@@ -117,6 +120,12 @@ Returns:
           lines.push(
             `  preferred=${item.preferredModel ?? 'none'} | effective=${item.effectiveModel ?? 'none'}`,
           );
+          if (item.preferredModel && registry?.models[item.preferredModel]) {
+            const entry = registry.models[item.preferredModel];
+            lines.push(
+              `  preferredRegistry=${entry.lastStatus} | lastSeen=${entry.lastSeenAt}`,
+            );
+          }
         }
       }
 
@@ -127,6 +136,18 @@ Returns:
           lines.push(
             `  preferred=${item.preferredModel ?? 'none'} | effective=${item.effectiveModel ?? 'none'}`,
           );
+          if (item.preferredModel && registry?.models[item.preferredModel]) {
+            const entry = registry.models[item.preferredModel];
+            lines.push(
+              `  preferredRegistry=${entry.lastStatus} | lastSeen=${entry.lastSeenAt}`,
+            );
+          }
+          if (item.effectiveModel && registry?.models[item.effectiveModel]) {
+            const entry = registry.models[item.effectiveModel];
+            lines.push(
+              `  effectiveRegistry=${entry.lastStatus} | lastSeen=${entry.lastSeenAt}`,
+            );
+          }
           if (item.cooledModels.length > 0) {
             lines.push(`  cooled=${formatList(item.cooledModels)}`);
           }

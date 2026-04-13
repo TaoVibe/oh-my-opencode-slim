@@ -27,6 +27,7 @@ import type { MultiplexerConfig } from '../config/schema';
 import { getMultiplexer } from '../multiplexer';
 import {
   applyAgentVariant,
+  ModelRegistryStore,
   type ModelHealthSnapshot,
   ModelHealthTracker,
   resolveAgentVariant,
@@ -121,6 +122,7 @@ export class BackgroundTaskManager {
   private config?: PluginConfig;
   private backgroundConfig: BackgroundTaskConfig;
   private modelHealth: ModelHealthTracker;
+  private modelRegistry?: ModelRegistryStore;
 
   // Start queue
   private startQueue: BackgroundTask[] = [];
@@ -138,6 +140,7 @@ export class BackgroundTaskManager {
     ctx: PluginInput,
     multiplexerConfig?: MultiplexerConfig,
     config?: PluginConfig,
+    modelRegistry?: ModelRegistryStore,
   ) {
     this.client = ctx.client;
     this.directory = ctx.directory;
@@ -154,6 +157,7 @@ export class BackgroundTaskManager {
     this.maxConcurrentStarts = this.backgroundConfig.maxConcurrentStarts;
     this.depthTracker = new SubagentDepthTracker();
     this.modelHealth = new ModelHealthTracker(config?.fallback?.health);
+    this.modelRegistry = modelRegistry;
   }
 
   /**
@@ -536,6 +540,7 @@ export class BackgroundTaskManager {
       for (let i = 0; i < attemptModels.length; i++) {
         const model = attemptModels[i];
         const modelLabel = model ?? 'default-model';
+        const startedAt = Date.now();
         try {
           const body: PromptBody = {
             ...basePromptBody,
@@ -576,6 +581,13 @@ export class BackgroundTaskManager {
           }
 
           this.modelHealth.recordSuccess(model);
+          if (model) {
+            this.modelRegistry?.recordSuccess({
+              model,
+              source: 'background',
+              latencyMs: Date.now() - startedAt,
+            });
+          }
           this.completeTask(task, 'completed', extraction.text);
           succeeded = true;
           break;
@@ -583,6 +595,14 @@ export class BackgroundTaskManager {
           const msg = error instanceof Error ? error.message : String(error);
           errors.push(`${modelLabel}: ${msg}`);
           this.modelHealth.recordFailure(model, msg);
+          if (model) {
+            this.modelRegistry?.recordFailure({
+              model,
+              source: 'background',
+              error: msg,
+              latencyMs: Date.now() - startedAt,
+            });
+          }
           log(`[background-manager] model failed: ${modelLabel} — ${msg}`, {
             taskId: task.id,
           });

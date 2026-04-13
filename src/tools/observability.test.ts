@@ -1,5 +1,9 @@
 import { describe, expect, test } from 'bun:test';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { createObservabilityTool } from './observability';
+import { ModelRegistryStore } from '../utils/model-registry';
 
 describe('observability_status tool', () => {
   test('shows active task and pane runtime state', async () => {
@@ -154,5 +158,62 @@ describe('observability_status tool', () => {
 
     const result = await tools.routing_doctor.execute({}, {} as any);
     expect(result).toContain('Freshness: stale session detected');
+  });
+
+  test('routing_doctor includes registry state for preferred/effective models', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'omo-obs-reg-'));
+    const store = new ModelRegistryStore(join(dir, 'model-registry.json'));
+    store.recordFailure({
+      model: 'XiaomiMiMo/MiMo-V2-Flash-TEE',
+      source: 'probe',
+      probe: true,
+      error: 'timeout',
+    });
+    store.recordSuccess({
+      model: 'Qwen/Qwen3-235B-A22B-Instruct-2507-TEE',
+      source: 'probe',
+      probe: true,
+    });
+
+    try {
+      const tools = createObservabilityTool(
+        {
+          getTaskSnapshots: () => [],
+          getSessionAgentModelOverrides: () => ({}),
+          getModelHealthSnapshots: () => [
+            {
+              model: 'XiaomiMiMo/MiMo-V2-Flash-TEE',
+              consecutiveFailures: 0,
+              cooldownLevel: 1,
+              cooldownUntil: '2026-04-12T00:10:00.000Z',
+              isCooling: true,
+            },
+          ],
+        } as any,
+        { getTrackedSessions: () => [] } as any,
+        {
+          routing: {
+            categories: {
+              planning: {
+                value: {
+                  model: [
+                    'XiaomiMiMo/MiMo-V2-Flash-TEE',
+                    'Qwen/Qwen3-235B-A22B-Instruct-2507-TEE',
+                  ],
+                },
+              },
+            },
+          },
+        } as any,
+        undefined,
+        store,
+      );
+
+      const result = await tools.routing_doctor.execute({}, {} as any);
+      expect(result).toContain('preferredRegistry=failed');
+      expect(result).toContain('effectiveRegistry=alive');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

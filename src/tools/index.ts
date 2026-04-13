@@ -11,5 +11,6 @@ export {
   lspManager,
   setUserLspConfig,
 } from './lsp';
+export { createModelRegistryTool } from './model-registry';
 export { createObservabilityTool } from './observability';
 export { createWebfetchTool } from './smartfetch';
