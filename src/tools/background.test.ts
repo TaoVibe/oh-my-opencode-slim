@@ -32,6 +32,53 @@ describe('background_task tool', () => {
     expect(result).toContain('Provide either category OR agent, not both');
     expect(result).toContain('Category "review" resolves to "momus"');
   });
+
+  test('applies lane-based route chain for category launches', async () => {
+    const manager = {
+      isAgentAllowed: () => true,
+      getAllowedSubagents: () => ['prometheus'],
+      launch: () => ({ id: 'bg_2', status: 'pending' }),
+      resolveConfiguredModel: (_agent: string, _session: string, routeChain: string[]) =>
+        routeChain[0],
+      resolveFallbackChain: (_agent: string, _session: string, routeChain: string[]) =>
+        routeChain,
+      getResult: () => null,
+      waitForCompletion: async () => null,
+      cancel: () => 0,
+      setSessionAgentModelOverride: () => {},
+      clearSessionAgentModelOverride: () => {},
+      getSessionAgentModelOverrides: () => ({}),
+    } as any;
+
+    const tools = createBackgroundTools({} as any, manager, undefined, {
+      routing: {
+        categories: {
+          planning: {
+            agent: 'prometheus',
+            value: {
+              model: [
+                'XiaomiMiMo/MiMo-V2-Flash-TEE',
+                'Qwen/Qwen3-235B-A22B-Instruct-2507-TEE',
+              ],
+            },
+          },
+        },
+      },
+    } as any);
+
+    const result = await tools.background_task.execute(
+      {
+        description: 'review architecture',
+        prompt: 'review it',
+        category: 'planning',
+        lane: 'value',
+      },
+      { sessionID: 'parent-1' } as any,
+    );
+
+    expect(result).toContain('lane: value');
+    expect(result).toContain('Model: XiaomiMiMo/MiMo-V2-Flash-TEE');
+  });
 });
 
 describe('session_agent_model tool', () => {

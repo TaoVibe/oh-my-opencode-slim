@@ -28,4 +28,47 @@ describe('delegate_task tool', () => {
     expect(result).toContain('Provide either subagent_type OR category, not both');
     expect(result).toContain('Category "review" resolves to "momus"');
   });
+
+  test('applies route lane model chain for category launches', async () => {
+    const manager = {
+      getAllowedSubagents: () => ['prometheus'],
+      launch: () => ({ id: 'bg_2', status: 'pending' }),
+      resolveConfiguredModel: (_agent: string, _session: string, routeChain: string[]) =>
+        routeChain[0],
+      resolveFallbackChain: (_agent: string, _session: string, routeChain: string[]) =>
+        routeChain,
+    } as any;
+
+    const tools = createDelegateTaskTool({} as any, manager, undefined, {
+      routing: {
+        categories: {
+          planning: {
+            agent: 'prometheus',
+            cheap: {
+              model: [
+                'Qwen/Qwen3-30B-A3B',
+                'deepseek-ai/DeepSeek-R1-Distill-Llama-70B',
+              ],
+            },
+          },
+        },
+      },
+    } as any);
+
+    const result = await tools.delegate_task.execute(
+      {
+        description: 'plan feature',
+        prompt: 'plan it',
+        category: 'planning',
+        lane: 'cheap',
+        run_in_background: true,
+        session_id: 'default',
+        load_skills: [],
+      },
+      { sessionID: 'parent-1' } as any,
+    );
+
+    expect(result).toContain('lane: cheap');
+    expect(result).toContain('Model: Qwen/Qwen3-30B-A3B');
+  });
 });

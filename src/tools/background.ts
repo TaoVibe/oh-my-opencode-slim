@@ -9,13 +9,14 @@ import { ALL_AGENT_NAMES, isModelAllowed } from '../config';
 import {
   getCategoryRoutingHint,
   getValidCategoriesString,
+  getValidRoutingLanesString,
   isValidCategory,
+  isValidRoutingLane,
   resolveCategory,
-} from '../config/categories';
-import {
+  resolveCategoryRoute,
   formatTaskLaunchMessage,
   type ResolvedAgent,
-} from '../config/resolution';
+} from '../config';
 import type { MultiplexerConfig } from '../config/schema';
 
 const z = tool.schema;
@@ -50,6 +51,7 @@ export function createBackgroundTools(
   );
   const overridableAgentNames = overridableAgents.join(', ');
   const validCategories = getValidCategoriesString();
+  const validLanes = getValidRoutingLanesString();
   const normalizeOptionalString = (
     value: string | null | undefined,
   ): string | undefined => {
@@ -84,6 +86,9 @@ You can specify either:
       category: optionalTrimmedString().describe(
         `Task category (alternative to agent): ${validCategories}`,
       ),
+      lane: optionalTrimmedString().describe(
+        `Routing lane for category-based selection: ${validLanes}`,
+      ),
     },
     async execute(args, toolContext) {
       if (
@@ -100,9 +105,16 @@ You can specify either:
 
       const categoryArg = normalizeOptionalString(args.category);
       const agentArg = normalizeOptionalString(args.agent);
+      const laneArg = normalizeOptionalString(args.lane);
+
+      if (laneArg && !isValidRoutingLane(laneArg)) {
+        return `Invalid lane "${laneArg}". Valid lanes: ${validLanes}`;
+      }
 
       // Resolve agent - either direct or via category
       let resolvedAgent: string;
+      let resolvedLane: string | undefined;
+      let routeModelChain: string[] = [];
 
       if (categoryArg) {
         if (agentArg) {
@@ -119,8 +131,14 @@ You can specify either:
         if (!agent) {
           return `Category "${category}" has no default agent`;
         }
-        resolvedAgent = agent;
+        const route = resolveCategoryRoute(pluginConfig, category, laneArg);
+        resolvedAgent = route.agent ?? agent;
+        resolvedLane = route.lane;
+        routeModelChain = route.modelChain;
       } else if (agentArg) {
+        if (laneArg) {
+          return 'lane requires category routing. Provide category instead of direct agent.';
+        }
         resolvedAgent = agentArg;
       } else {
         return `Must provide either agent or category. Category routing: ${getCategoryRoutingHint()}`;
@@ -138,14 +156,30 @@ You can specify either:
         prompt,
         description,
         parentSessionId,
+        category: categoryArg,
+        lane: resolvedLane,
+        routeModelChain,
       });
 
       const resolved: ResolvedAgent = categoryArg
-        ? { agent: resolvedAgent, via: 'category', category: categoryArg }
+        ? {
+            agent: resolvedAgent,
+            via: 'category',
+            category: categoryArg,
+            lane: resolvedLane as any,
+          }
         : { agent: resolvedAgent, via: 'subagent_type' };
       const metadata = {
-        model: manager.resolveConfiguredModel(resolvedAgent, parentSessionId),
-        fallbackChain: manager.resolveFallbackChain(resolvedAgent, parentSessionId),
+        model: manager.resolveConfiguredModel(
+          resolvedAgent,
+          parentSessionId,
+          routeModelChain,
+        ),
+        fallbackChain: manager.resolveFallbackChain(
+          resolvedAgent,
+          parentSessionId,
+          routeModelChain,
+        ),
       };
 
       return formatTaskLaunchMessage(task, resolved, true, metadata);

@@ -18,6 +18,11 @@ import {
   resolveCategory,
 } from './categories';
 import type { AgentName } from './constants';
+import type { RoutingLane } from './schema';
+import {
+  getValidRoutingLanesString,
+  isValidRoutingLane,
+} from './routing';
 
 export interface TaskLaunchMetadata {
   model?: string;
@@ -31,6 +36,7 @@ export interface ResolvedAgent {
   agent: string;
   via: 'category' | 'subagent_type';
   category?: string;
+  lane?: RoutingLane;
 }
 
 /**
@@ -67,10 +73,28 @@ function normalizeOptionalString(
 export function resolveRequestedAgent(args: {
   category?: string | null;
   subagent_type?: string | null;
+  lane?: string | null;
 }): ResolvedAgent | ResolutionError {
   const validCategories = getValidCategoriesString();
+  const validLanes = getValidRoutingLanesString();
   const category = normalizeOptionalString(args.category)?.toLowerCase();
   const subagentType = normalizeOptionalString(args.subagent_type);
+  const lane = normalizeOptionalString(args.lane)?.toLowerCase();
+
+  if (lane && !isValidRoutingLane(lane)) {
+    return {
+      error: true,
+      message: `Invalid lane "${lane}". Valid lanes: ${validLanes}`,
+    };
+  }
+
+  if (lane && subagentType && !category) {
+    return {
+      error: true,
+      message:
+        'lane requires category routing. Provide category instead of direct subagent_type.',
+    };
+  }
 
   if (category && subagentType) {
     const resolved = resolveCategory(category);
@@ -101,6 +125,7 @@ export function resolveRequestedAgent(args: {
       agent,
       via: 'category',
       category,
+      lane: lane as RoutingLane | undefined,
     };
   }
 
@@ -163,7 +188,9 @@ export function formatTaskLaunchMessage(
   metadata?: TaskLaunchMetadata,
 ): string {
   const categoryNote =
-    resolved.via === 'category' ? ` (via category: ${resolved.category})` : '';
+    resolved.via === 'category'
+      ? ` (via category: ${resolved.category}${resolved.lane ? `, lane: ${resolved.lane}` : ''})`
+      : '';
   const metadataLine = formatLaunchMetadata(metadata);
   const metadataBlock = metadataLine ? `
 ${metadataLine}` : '';

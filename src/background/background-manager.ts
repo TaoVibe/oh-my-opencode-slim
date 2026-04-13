@@ -63,6 +63,9 @@ export interface BackgroundTask {
   startedAt: Date; // Task creation timestamp
   completedAt?: Date; // Task completion/failure timestamp
   prompt: string; // Initial prompt
+  category?: string; // Source routing category (if any)
+  lane?: string; // Source routing lane (if any)
+  routeModelChain?: string[]; // Category/lane-specific chain override
 }
 
 /**
@@ -73,6 +76,9 @@ export interface LaunchOptions {
   prompt: string; // Initial prompt to send to the agent
   description: string; // Human-readable task description
   parentSessionId: string; // Parent session ID for task hierarchy
+  category?: string;
+  lane?: string;
+  routeModelChain?: string[];
 }
 
 export interface BackgroundTaskSnapshot {
@@ -209,6 +215,9 @@ export class BackgroundTaskManager {
       },
       parentSessionId: opts.parentSessionId,
       prompt: opts.prompt,
+      category: opts.category,
+      lane: opts.lane,
+      routeModelChain: opts.routeModelChain,
     };
 
     this.tasks.set(task.id, task);
@@ -297,7 +306,11 @@ export class BackgroundTaskManager {
     );
   }
 
-  resolveFallbackChain(agentName: string, sessionId?: string): string[] {
+  resolveFallbackChain(
+    agentName: string,
+    sessionId?: string,
+    routeModelChain?: string[],
+  ): string[] {
     const sessionOverride = this.getSessionAgentModelOverride(sessionId, agentName);
     const fallback = this.config?.fallback;
     const chains = fallback?.chains as
@@ -319,8 +332,8 @@ export class BackgroundTaskManager {
       primaryIds = [];
     }
     const modelsToUse = sessionOverride
-      ? [sessionOverride, ...primaryIds, ...configuredChain]
-      : [...primaryIds, ...configuredChain];
+      ? [sessionOverride, ...(routeModelChain ?? []), ...primaryIds, ...configuredChain]
+      : [...(routeModelChain ?? []), ...primaryIds, ...configuredChain];
     for (const model of modelsToUse) {
       if (!model || seen.has(model)) continue;
       seen.add(model);
@@ -333,6 +346,7 @@ export class BackgroundTaskManager {
   resolveConfiguredModel(
     agentName: string,
     sessionId?: string,
+    routeModelChain?: string[],
   ): string | undefined {
     const sessionOverride = this.getSessionAgentModelOverride(sessionId, agentName);
     if (sessionOverride) {
@@ -343,7 +357,10 @@ export class BackgroundTaskManager {
     if (Array.isArray(model)) {
       const first = model[0];
       return filterAllowedModels(
-        [typeof first === 'string' ? first : first?.id].filter(
+        [
+          ...(routeModelChain ?? []),
+          typeof first === 'string' ? first : first?.id,
+        ].filter(
           (value): value is string => Boolean(value),
         ),
         this.config,
@@ -351,11 +368,14 @@ export class BackgroundTaskManager {
     }
 
     if (typeof model === 'string') {
-      return filterAllowedModels([model], this.config)[0];
+      return filterAllowedModels([...(routeModelChain ?? []), model], this.config)[0];
     }
 
     return filterAllowedModels(
-      [DEFAULT_MODELS[agentName as keyof typeof DEFAULT_MODELS]].filter(
+      [
+        ...(routeModelChain ?? []),
+        DEFAULT_MODELS[agentName as keyof typeof DEFAULT_MODELS],
+      ].filter(
         (value): value is string => Boolean(value),
       ),
       this.config,
@@ -466,6 +486,7 @@ export class BackgroundTaskManager {
       const configuredModel = this.resolveConfiguredModel(
         task.agent,
         task.parentSessionId,
+        task.routeModelChain,
       );
       const basePromptBody = applyAgentVariant(resolvedVariant, {
         agent: task.agent,
@@ -479,7 +500,11 @@ export class BackgroundTaskManager {
         : 0; // 0 = no timeout when fallback disabled
       const retryDelayMs = this.config?.fallback?.retryDelayMs ?? 500;
       const chain = fallbackEnabled
-        ? this.resolveFallbackChain(task.agent, task.parentSessionId)
+        ? this.resolveFallbackChain(
+            task.agent,
+            task.parentSessionId,
+            task.routeModelChain,
+          )
         : [];
       const attemptModels = chain.length > 0 ? chain : [undefined];
 

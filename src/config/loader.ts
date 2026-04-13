@@ -166,6 +166,7 @@ export function loadPluginConfig(directory: string): PluginConfig {
       interview: deepMerge(config.interview, projectConfig.interview),
       fallback: deepMerge(config.fallback, projectConfig.fallback),
       council: deepMerge(config.council, projectConfig.council),
+      routing: deepMerge(config.routing, projectConfig.routing),
     };
   }
 

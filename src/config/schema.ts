@@ -101,6 +101,42 @@ export const AgentOverrideConfigSchema = z.object({
   options: z.record(z.string(), z.unknown()).optional(), // provider-specific model options (e.g., textVerbosity, thinking budget)
 });
 
+export const RoutingLaneSchema = z.enum(['cheap', 'value', 'premium']);
+export type RoutingLane = z.infer<typeof RoutingLaneSchema>;
+
+const RouteTargetSchema = z.object({
+  agent: z.string().optional(),
+  model: z
+    .union([
+      z.string(),
+      z.array(
+        z.union([
+          z.string(),
+          z.object({
+            id: z.string(),
+            variant: z.string().optional(),
+          }),
+        ]),
+      ),
+    ])
+    .optional(),
+});
+
+const CategoryRoutingSchema = z.object({
+  agent: z.string().optional(),
+  defaultLane: RoutingLaneSchema.optional(),
+  cheap: RouteTargetSchema.optional(),
+  value: RouteTargetSchema.optional(),
+  premium: RouteTargetSchema.optional(),
+});
+
+export const RoutingConfigSchema = z.object({
+  defaultLane: RoutingLaneSchema.optional(),
+  categories: z.record(z.string(), CategoryRoutingSchema).optional(),
+});
+
+export type RoutingConfig = z.infer<typeof RoutingConfigSchema>;
+
 // Multiplexer type options
 export const MultiplexerTypeSchema = z.enum(['auto', 'tmux', 'zellij', 'none']);
 export type MultiplexerType = z.infer<typeof MultiplexerTypeSchema>;
@@ -295,6 +331,7 @@ export const PluginConfigSchema = z.object({
   council: CouncilConfigSchema.optional(),
   featureFlags: FeatureFlagsSchema.optional(),
   modelPolicy: ModelPolicySchema.optional(),
+  routing: RoutingConfigSchema.optional(),
 });
 
 export type PluginConfig = z.infer<typeof PluginConfigSchema>;

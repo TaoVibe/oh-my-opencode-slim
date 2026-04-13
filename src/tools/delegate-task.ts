@@ -7,11 +7,13 @@ import type { BackgroundTaskManager } from '../background';
 import type { PluginConfig } from '../config';
 import { ALL_AGENT_NAMES } from '../config';
 import {
+  getValidRoutingLanesString,
+  resolveCategoryRoute,
   checkAgentAllowed,
   formatTaskLaunchMessage,
   getValidCategoriesString,
   resolveRequestedAgent,
-} from '../config/resolution';
+} from '../config';
 import type { MultiplexerConfig } from '../config/schema';
 
 const z = tool.schema;
@@ -34,6 +36,7 @@ export function createDelegateTaskTool(
 ): Record<string, ToolDefinition> {
   const agentNames = ALL_AGENT_NAMES.join(', ');
   const validCategories = getValidCategoriesString();
+  const validLanes = getValidRoutingLanesString();
 
   const delegate_task = tool({
     description: `Delegate task to a specialist agent. Returns task_id immediately.
@@ -59,6 +62,9 @@ You can specify either:
       ),
       category: optionalTrimmedString().describe(
         `Task category (alternative to subagent_type): ${validCategories}`,
+      ),
+      lane: optionalTrimmedString().describe(
+        `Routing lane for category-based selection: ${validLanes}`,
       ),
       run_in_background: z
         .boolean()
@@ -90,34 +96,57 @@ You can specify either:
       const resolved = resolveRequestedAgent({
         category: args.category,
         subagent_type: args.subagent_type,
+        lane: args.lane,
       });
 
       if ('error' in resolved) {
         return resolved.message;
       }
 
+      const route = resolved.category
+        ? resolveCategoryRoute(_pluginConfig, resolved.category, resolved.lane)
+        : { agent: undefined, lane: undefined, modelChain: [] };
+      const resolvedAgent = route.agent ?? resolved.agent;
+
       // Check agent allowed
       const allowed = manager.getAllowedSubagents(parentSessionId);
-      const allowedError = checkAgentAllowed(resolved.agent, allowed);
+      const allowedError = checkAgentAllowed(resolvedAgent, allowed);
       if (allowedError) {
         return allowedError.message;
       }
 
       const task = manager.launch({
-        agent: resolved.agent,
+        agent: resolvedAgent,
         prompt,
         description,
         parentSessionId,
+        category: resolved.category,
+        lane: route.lane,
+        routeModelChain: route.modelChain,
       });
       const metadata = {
-        model: manager.resolveConfiguredModel(resolved.agent, parentSessionId),
-        fallbackChain: manager.resolveFallbackChain(
-          resolved.agent,
+        model: manager.resolveConfiguredModel(
+          resolvedAgent,
           parentSessionId,
+          route.modelChain,
+        ),
+        fallbackChain: manager.resolveFallbackChain(
+          resolvedAgent,
+          parentSessionId,
+          route.modelChain,
         ),
       };
 
-      return formatTaskLaunchMessage(task, resolved, runInBackground, metadata);
+      return formatTaskLaunchMessage(
+        task,
+        {
+          ...resolved,
+          agent: resolvedAgent,
+          lane: route.lane ?? resolved.lane,
+        },
+        runInBackground,
+        metadata,
+      );
     },
   });
 

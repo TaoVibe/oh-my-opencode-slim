@@ -5,6 +5,13 @@
     "preset": {
       "type": "string"
     },
+    "stackMode": {
+      "type": "string",
+      "enum": [
+        "paid",
+        "free"
+      ]
+    },
     "setDefaultAgent": {
       "type": "boolean"
     },
@@ -665,6 +672,179 @@
         "nativeBashAskAll": {
           "default": false,
           "type": "boolean"
+        }
+      }
+    },
+    "modelPolicy": {
+      "type": "object",
+      "properties": {
+        "enforceAllowlist": {
+          "default": false,
+          "type": "boolean"
+        },
+        "allowedModels": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[^/\\s]+\\/[^\\s]+$"
+          }
+        },
+        "failClosed": {
+          "default": true,
+          "type": "boolean"
+        }
+      }
+    },
+    "routing": {
+      "type": "object",
+      "properties": {
+        "defaultLane": {
+          "type": "string",
+          "enum": [
+            "cheap",
+            "value",
+            "premium"
+          ]
+        },
+        "categories": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "agent": {
+                "type": "string"
+              },
+              "defaultLane": {
+                "type": "string",
+                "enum": [
+                  "cheap",
+                  "value",
+                  "premium"
+                ]
+              },
+              "cheap": {
+                "type": "object",
+                "properties": {
+                  "agent": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "variant": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id"
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              "value": {
+                "type": "object",
+                "properties": {
+                  "agent": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "variant": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id"
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              },
+              "premium": {
+                "type": "object",
+                "properties": {
+                  "agent": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "variant": {
+                                  "type": "string"
+                                }
+                              },
+                              "required": [
+                                "id"
+                              ]
+                            }
+                          ]
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
         }
       }
     }
