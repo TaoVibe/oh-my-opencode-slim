@@ -6,7 +6,7 @@ import type {
 } from '../background';
 import type { PluginConfig } from '../config';
 import { buildRoutingDiagnostics } from '../config';
-import type { ModelRegistryStore } from '../utils';
+import { lookupRegistryEntry, type ModelRegistryStore } from '../utils';
 
 const z = tool.schema;
 
@@ -66,13 +66,16 @@ Returns:
         ? Date.parse(runtimeMeta.pluginStartedAt)
         : Number.NaN;
       const latestConfigMtime =
-        runtimeMeta?.latestConfigMtime ?? getLatestMtime(runtimeMeta?.configPaths);
+        runtimeMeta?.latestConfigMtime ??
+        getLatestMtime(runtimeMeta?.configPaths);
       const latestBuildMtime =
         runtimeMeta?.latestBuildMtime ??
         getLatestMtime(runtimeMeta?.buildArtifactPaths);
       const lines = ['Routing Doctor'];
 
-      lines.push(`Plugin started: ${runtimeMeta?.pluginStartedAt ?? 'unknown'}`);
+      lines.push(
+        `Plugin started: ${runtimeMeta?.pluginStartedAt ?? 'unknown'}`,
+      );
       if (latestConfigMtime) {
         lines.push(`Latest config mtime: ${latestConfigMtime}`);
       }
@@ -99,17 +102,28 @@ Returns:
             .join(', ')}). Restart qde before debugging routing behavior.`,
         );
       } else {
-        lines.push('Freshness: session appears current against known config/build files.');
+        lines.push(
+          'Freshness: session appears current against known config/build files.',
+        );
       }
 
-      const blocked = routeDiagnostics.filter((item) => item.status === 'blocked');
-      const degraded = routeDiagnostics.filter((item) => item.status === 'degraded');
+      const blocked = routeDiagnostics.filter(
+        (item) => item.status === 'blocked',
+      );
+      const degraded = routeDiagnostics.filter(
+        (item) => item.status === 'degraded',
+      );
 
       lines.push(
         `Summary: healthy=${routeDiagnostics.filter((item) => item.status === 'healthy').length}, degraded=${degraded.length}, blocked=${blocked.length}`,
       );
 
-      if (!staleConfig && !staleBuild && blocked.length === 0 && degraded.length === 0) {
+      if (
+        !staleConfig &&
+        !staleBuild &&
+        blocked.length === 0 &&
+        degraded.length === 0
+      ) {
         lines.push('Verdict: routing looks healthy.');
       } else {
         lines.push(
@@ -124,10 +138,12 @@ Returns:
           lines.push(
             `  preferred=${item.preferredModel ?? 'none'} | effective=${item.effectiveModel ?? 'none'}`,
           );
-          if (item.preferredModel && registry?.models[item.preferredModel]) {
-            const entry = registry.models[item.preferredModel];
+          const preferredEntry = item.preferredModel
+            ? lookupRegistryEntry(registry, item.preferredModel)
+            : undefined;
+          if (preferredEntry) {
             lines.push(
-              `  preferredRegistry=${entry.lastStatus} | lastSeen=${entry.lastSeenAt} | requests=${entry.requestCount}`,
+              `  preferredRegistry=${preferredEntry.lastStatus} | lastSeen=${preferredEntry.lastSeenAt} | requests=${preferredEntry.requestCount}`,
             );
           }
         }
@@ -140,16 +156,20 @@ Returns:
           lines.push(
             `  preferred=${item.preferredModel ?? 'none'} | effective=${item.effectiveModel ?? 'none'}`,
           );
-          if (item.preferredModel && registry?.models[item.preferredModel]) {
-            const entry = registry.models[item.preferredModel];
+          const preferredEntry = item.preferredModel
+            ? lookupRegistryEntry(registry, item.preferredModel)
+            : undefined;
+          if (preferredEntry) {
             lines.push(
-              `  preferredRegistry=${entry.lastStatus} | lastSeen=${entry.lastSeenAt} | requests=${entry.requestCount}`,
+              `  preferredRegistry=${preferredEntry.lastStatus} | lastSeen=${preferredEntry.lastSeenAt} | requests=${preferredEntry.requestCount}`,
             );
           }
-          if (item.effectiveModel && registry?.models[item.effectiveModel]) {
-            const entry = registry.models[item.effectiveModel];
+          const effectiveEntry = item.effectiveModel
+            ? lookupRegistryEntry(registry, item.effectiveModel)
+            : undefined;
+          if (effectiveEntry) {
             lines.push(
-              `  effectiveRegistry=${entry.lastStatus} | lastSeen=${entry.lastSeenAt} | requests=${entry.requestCount}`,
+              `  effectiveRegistry=${effectiveEntry.lastStatus} | lastSeen=${effectiveEntry.lastSeenAt} | requests=${effectiveEntry.requestCount}`,
             );
           }
           if (item.recentFailedModels.length > 0) {
@@ -202,7 +222,9 @@ Returns:
           );
       const panes = multiplexerSessionManager.getTrackedSessions();
       const currentSessionId =
-        toolContext && typeof toolContext === 'object' && 'sessionID' in toolContext
+        toolContext &&
+        typeof toolContext === 'object' &&
+        'sessionID' in toolContext
           ? String((toolContext as { sessionID: string }).sessionID)
           : undefined;
       const sessionOverrides = currentSessionId
@@ -215,7 +237,8 @@ Returns:
         modelRegistry?.load(),
       );
       const latestConfigMtime =
-        runtimeMeta?.latestConfigMtime ?? getLatestMtime(runtimeMeta?.configPaths);
+        runtimeMeta?.latestConfigMtime ??
+        getLatestMtime(runtimeMeta?.configPaths);
       const latestBuildMtime =
         runtimeMeta?.latestBuildMtime ??
         getLatestMtime(runtimeMeta?.buildArtifactPaths);
@@ -224,9 +247,11 @@ Returns:
         pending: allTasks.filter((task) => task.status === 'pending').length,
         starting: allTasks.filter((task) => task.status === 'starting').length,
         running: allTasks.filter((task) => task.status === 'running').length,
-        completed: allTasks.filter((task) => task.status === 'completed').length,
+        completed: allTasks.filter((task) => task.status === 'completed')
+          .length,
         failed: allTasks.filter((task) => task.status === 'failed').length,
-        cancelled: allTasks.filter((task) => task.status === 'cancelled').length,
+        cancelled: allTasks.filter((task) => task.status === 'cancelled')
+          .length,
       };
 
       const lines = [

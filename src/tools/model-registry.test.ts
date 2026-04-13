@@ -1,9 +1,9 @@
 import { describe, expect, mock, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { createModelRegistryTool } from './model-registry';
+import { join } from 'node:path';
 import { ModelRegistryStore } from '../utils/model-registry';
+import { createModelRegistryTool } from './model-registry';
 
 describe('model registry tools', () => {
   test('probe persists alive result and status reports it', async () => {
@@ -69,7 +69,11 @@ describe('model registry tools', () => {
             {
               model: 'Qwen/Qwen3-Coder-Next',
               aliases: ['Qwen3 Coder Next'],
-              metadata: { provider: 'chutes', inputUsdPerM: 0.07, outputUsdPerM: 0.3 },
+              metadata: {
+                provider: 'chutes',
+                inputUsdPerM: 0.07,
+                outputUsdPerM: 0.3,
+              },
             },
           ],
         },
@@ -79,7 +83,7 @@ describe('model registry tools', () => {
       expect(result).toContain('Imported: 1');
 
       const status = await tools.model_registry_status.execute({}, {} as any);
-      expect(status).toContain('Qwen/Qwen3-Coder-Next');
+      expect(status).toContain('chutes/qwen/qwen3-coder-next');
       expect(status).toContain('"inputUsdPerM":0.07');
     } finally {
       rmSync(dir, { recursive: true, force: true });

@@ -1,6 +1,9 @@
-import { filterAllowedModels } from './model-policy';
 import type { ModelHealthSnapshot } from '../utils/model-health';
-import type { ModelRegistryData } from '../utils/model-registry';
+import {
+  lookupRegistryEntry,
+  type ModelRegistryData,
+} from '../utils/model-registry';
+import { filterAllowedModels } from './model-policy';
 import type { PluginConfig, RoutingLane } from './schema';
 
 export interface RouteDiagnostic {
@@ -19,11 +22,15 @@ export interface RouteDiagnostic {
 export function buildRoutingHealthNotice(
   diagnostics: RouteDiagnostic[],
 ): string | undefined {
-  const healthy = diagnostics.filter((item) => item.status === 'healthy').length;
+  const healthy = diagnostics.filter(
+    (item) => item.status === 'healthy',
+  ).length;
   const degraded = diagnostics.filter(
     (item) => item.status === 'degraded',
   ).length;
-  const blocked = diagnostics.filter((item) => item.status === 'blocked').length;
+  const blocked = diagnostics.filter(
+    (item) => item.status === 'blocked',
+  ).length;
 
   if (degraded === 0 && blocked === 0) {
     return undefined;
@@ -45,10 +52,7 @@ export function buildRoutingHealthNotice(
     .map((item) => `${item.category}/${item.lane}`)
     .join(', ');
   const preferList = degradedAlternatives
-    .map(
-      (item) =>
-        `${item.category}/${item.lane}→${item.effectiveModel}`,
-    )
+    .map((item) => `${item.category}/${item.lane}→${item.effectiveModel}`)
     .join('; ');
 
   const lines = ['<RoutingHealth>', summary];
@@ -61,7 +65,9 @@ export function buildRoutingHealthNotice(
     lines.push(`prefer=${preferList}`);
   }
 
-  lines.push('Use listed alternates; avoid blocked routes unless explicitly testing routing.');
+  lines.push(
+    'Use listed alternates; avoid blocked routes unless explicitly testing routing.',
+  );
   lines.push('</RoutingHealth>');
   return lines.join('\n');
 }
@@ -78,8 +84,7 @@ function normalizeModels(model: unknown): string[] {
   return model
     .map((entry) => (typeof entry === 'string' ? entry : entry?.id))
     .filter(
-      (entry): entry is string =>
-        typeof entry === 'string' && entry.length > 0,
+      (entry): entry is string => typeof entry === 'string' && entry.length > 0,
     );
 }
 
@@ -89,7 +94,7 @@ function hasRecentRegistryFailure(
   now: number,
   windowMs: number,
 ): boolean {
-  const entry = registry?.models[model];
+  const entry = lookupRegistryEntry(registry, model);
   if (!entry || entry.lastStatus !== 'failed') {
     return false;
   }
@@ -127,12 +132,7 @@ export function buildRoutingDiagnostics(
       const allowedModels = filterAllowedModels(configuredModels, config);
       const cooledModels = allowedModels.filter((model) => cooled.has(model));
       const recentFailedModels = allowedModels.filter((model) =>
-        hasRecentRegistryFailure(
-          model,
-          registry,
-          now,
-          registryFailureWindowMs,
-        ),
+        hasRecentRegistryFailure(model, registry, now, registryFailureWindowMs),
       );
       const recentlyFailed = new Set(recentFailedModels);
 
@@ -151,9 +151,7 @@ export function buildRoutingDiagnostics(
       } else if (recentFailedModels.length === allowedModels.length) {
         status = 'blocked';
         reason = 'all allowed models have recent failed registry status';
-      } else if (
-        cooledModels.length > 0 && recentFailedModels.length > 0
-      ) {
+      } else if (cooledModels.length > 0 && recentFailedModels.length > 0) {
         status = 'degraded';
         reason =
           'some models cooling and some models have recent failed registry status';

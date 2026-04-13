@@ -1,6 +1,33 @@
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+function getPackageRoot(): string {
+  let currentDir = dirname(fileURLToPath(import.meta.url));
+
+  while (true) {
+    const packageJsonPath = join(currentDir, 'package.json');
+    if (existsSync(packageJsonPath)) {
+      try {
+        const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as {
+          name?: string;
+        };
+        if (pkg.name === 'oh-my-opencode-slim') {
+          return currentDir;
+        }
+      } catch {
+        // Ignore invalid package.json files while walking upward.
+      }
+    }
+
+    const parentDir = dirname(currentDir);
+    if (parentDir === currentDir) {
+      return dirname(fileURLToPath(import.meta.url));
+    }
+    currentDir = parentDir;
+  }
+}
 
 function getDefaultOpenCodeConfigDir(): string {
   const userConfigDir = process.env.XDG_CONFIG_HOME
@@ -98,6 +125,13 @@ export function ensureConfigDir(): void {
 }
 
 export function getSlimStateDir(): string {
+  const packageRoot = getPackageRoot();
+  return basename(packageRoot) === 'oh-my-opencode-slim-fork'
+    ? packageRoot
+    : join(getConfigDir(), 'oh-my-opencode-slim');
+}
+
+export function getLegacySlimStateDir(): string {
   return join(getConfigDir(), 'oh-my-opencode-slim');
 }
 
@@ -110,6 +144,10 @@ export function ensureSlimStateDir(): void {
 
 export function getModelRegistryPath(): string {
   return join(getSlimStateDir(), 'model-registry.json');
+}
+
+export function getLegacyModelRegistryPath(): string {
+  return join(getLegacySlimStateDir(), 'model-registry.json');
 }
 
 /**

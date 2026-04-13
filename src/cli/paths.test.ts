@@ -3,7 +3,8 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   ensureConfigDir,
   getConfigDir,
@@ -11,7 +12,9 @@ import {
   getConfigJsonc,
   getConfigSearchDirs,
   getExistingConfigPath,
+  getLegacyModelRegistryPath,
   getLiteConfig,
+  getModelRegistryPath,
   getOpenCodeConfigPaths,
 } from './paths';
 
@@ -99,6 +102,25 @@ describe('paths', () => {
   test('getLiteConfig() respects OPENCODE_CONFIG_DIR', () => {
     process.env.OPENCODE_CONFIG_DIR = '/custom/directory';
     expect(getLiteConfig()).toBe('/custom/directory/oh-my-opencode-slim.json');
+  });
+
+  test('getModelRegistryPath() points at the slim-fork repo root', () => {
+    process.env.OPENCODE_CONFIG_DIR = '/custom/directory';
+    process.env.XDG_CONFIG_HOME = '/tmp/xdg-config';
+    const expectedPath = join(
+      dirname(fileURLToPath(new URL('../../package.json', import.meta.url))),
+      'model-registry.json',
+    );
+
+    expect(getModelRegistryPath()).toBe(expectedPath);
+  });
+
+  test('getLegacyModelRegistryPath() stays in the config state dir', () => {
+    process.env.OPENCODE_CONFIG_DIR = '/custom/directory';
+
+    expect(getLegacyModelRegistryPath()).toBe(
+      '/custom/directory/oh-my-opencode-slim/model-registry.json',
+    );
   });
 
   describe('getExistingConfigPath()', () => {

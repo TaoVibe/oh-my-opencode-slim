@@ -1,8 +1,13 @@
-import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs';
 import { dirname } from 'node:path';
-import { mkdirSync } from 'node:fs';
-import { getModelRegistryPath } from '../cli/paths';
 import { buildModelKeyAliases } from '../cli/model-key-normalization';
+import { getLegacyModelRegistryPath, getModelRegistryPath } from '../cli/paths';
 import { parseModelReference } from './session';
 
 export type RegistryEventSource =
@@ -55,12 +60,18 @@ function recencyScore(timestamp?: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
-function metadataNumber(entry: ModelRegistryEntry | undefined, key: string): number {
+function metadataNumber(
+  entry: ModelRegistryEntry | undefined,
+  key: string,
+): number {
   const value = entry?.metadata?.[key];
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
-function metadataBoolean(entry: ModelRegistryEntry | undefined, key: string): boolean {
+function metadataBoolean(
+  entry: ModelRegistryEntry | undefined,
+  key: string,
+): boolean {
   return entry?.metadata?.[key] === true;
 }
 
@@ -135,6 +146,25 @@ function getCanonicalRegistryKey(model: string): string {
   return model;
 }
 
+export function lookupRegistryEntry(
+  registry: ModelRegistryData | undefined,
+  model: string,
+): ModelRegistryEntry | undefined {
+  if (!registry) {
+    return undefined;
+  }
+
+  const aliases = buildModelKeyAliases(model);
+  for (const alias of aliases) {
+    const entry = registry.models[alias];
+    if (entry) {
+      return entry;
+    }
+  }
+
+  return undefined;
+}
+
 function normalizeCount(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
@@ -147,7 +177,8 @@ function normalizeEntry(entry: ModelRegistryEntry): ModelRegistryEntry {
     failureCount: normalizeCount(entry.failureCount),
     probeCount: normalizeCount(entry.probeCount),
     totalLatencyMs:
-      typeof entry.totalLatencyMs === 'number' && Number.isFinite(entry.totalLatencyMs)
+      typeof entry.totalLatencyMs === 'number' &&
+      Number.isFinite(entry.totalLatencyMs)
         ? entry.totalLatencyMs
         : undefined,
   };
@@ -161,8 +192,16 @@ function mergeEntries(
     return normalizeEntry(right);
   }
 
-  const preferred = recencyScore(left.lastSeenAt) >= recencyScore(right.lastSeenAt) ? left : right;
-  const aliases = new Set([...(left.aliases ?? []), ...(right.aliases ?? []), right.model, left.model]);
+  const preferred =
+    recencyScore(left.lastSeenAt) >= recencyScore(right.lastSeenAt)
+      ? left
+      : right;
+  const aliases = new Set([
+    ...(left.aliases ?? []),
+    ...(right.aliases ?? []),
+    right.model,
+    left.model,
+  ]);
   const sources = new Set([...(left.sources ?? []), ...(right.sources ?? [])]);
 
   return normalizeEntry({
@@ -177,21 +216,27 @@ function mergeEntries(
       recencyScore(left.firstSeenAt) <= recencyScore(right.firstSeenAt)
         ? left.firstSeenAt
         : right.firstSeenAt,
-    successCount: normalizeCount(left.successCount) + normalizeCount(right.successCount),
-    failureCount: normalizeCount(left.failureCount) + normalizeCount(right.failureCount),
-    probeCount: normalizeCount(left.probeCount) + normalizeCount(right.probeCount),
-    requestCount: normalizeCount(left.requestCount) + normalizeCount(right.requestCount),
+    successCount:
+      normalizeCount(left.successCount) + normalizeCount(right.successCount),
+    failureCount:
+      normalizeCount(left.failureCount) + normalizeCount(right.failureCount),
+    probeCount:
+      normalizeCount(left.probeCount) + normalizeCount(right.probeCount),
+    requestCount:
+      normalizeCount(left.requestCount) + normalizeCount(right.requestCount),
     totalLatencyMs:
       (typeof left.totalLatencyMs === 'number' ? left.totalLatencyMs : 0) +
         (typeof right.totalLatencyMs === 'number' ? right.totalLatencyMs : 0) ||
       undefined,
     totalInputTokens:
-      ((left.totalInputTokens ?? 0) + (right.totalInputTokens ?? 0)) || undefined,
+      (left.totalInputTokens ?? 0) + (right.totalInputTokens ?? 0) || undefined,
     totalOutputTokens:
-      ((left.totalOutputTokens ?? 0) + (right.totalOutputTokens ?? 0)) || undefined,
-    totalTokens: ((left.totalTokens ?? 0) + (right.totalTokens ?? 0)) || undefined,
+      (left.totalOutputTokens ?? 0) + (right.totalOutputTokens ?? 0) ||
+      undefined,
+    totalTokens:
+      (left.totalTokens ?? 0) + (right.totalTokens ?? 0) || undefined,
     totalCostUsd:
-      ((left.totalCostUsd ?? 0) + (right.totalCostUsd ?? 0)) || undefined,
+      (left.totalCostUsd ?? 0) + (right.totalCostUsd ?? 0) || undefined,
     sources: [...sources],
   });
 }
@@ -225,7 +270,18 @@ function ensureDirForFile(filePath: string): void {
 }
 
 export class ModelRegistryStore {
-  constructor(private readonly filePath = getModelRegistryPath()) {}
+  private readonly legacyFilePath: string;
+
+  constructor(
+    private readonly filePath = getModelRegistryPath(),
+    legacyFilePath?: string,
+  ) {
+    this.legacyFilePath =
+      legacyFilePath ??
+      (filePath === getModelRegistryPath()
+        ? getLegacyModelRegistryPath()
+        : filePath);
+  }
 
   getPath(): string {
     return this.filePath;
@@ -233,14 +289,25 @@ export class ModelRegistryStore {
 
   load(): ModelRegistryData {
     if (!existsSync(this.filePath)) {
+      if (
+        this.legacyFilePath !== this.filePath &&
+        existsSync(this.legacyFilePath)
+      ) {
+        const migrated = this.loadRegistryFile(this.legacyFilePath);
+        this.save(migrated);
+        return migrated;
+      }
+
       return emptyRegistry();
     }
 
+    return this.loadRegistryFile(this.filePath);
+  }
+
+  private loadRegistryFile(filePath: string): ModelRegistryData {
     try {
-      const rawText = readFileSync(this.filePath, 'utf-8');
-      const parsed = JSON.parse(rawText) as
-        | ModelRegistryData
-        | undefined;
+      const rawText = readFileSync(filePath, 'utf-8');
+      const parsed = JSON.parse(rawText) as ModelRegistryData | undefined;
       if (!parsed || typeof parsed !== 'object' || !parsed.models) {
         return emptyRegistry();
       }
@@ -254,7 +321,9 @@ export class ModelRegistryStore {
       });
       const normalizedText = `${JSON.stringify(normalized, null, 2)}\n`;
       if (normalizedText !== rawText) {
-        this.save(normalized);
+        if (filePath === this.filePath) {
+          this.save(normalized);
+        }
       }
       return normalized;
     } catch {
@@ -269,8 +338,18 @@ export class ModelRegistryStore {
       const leftEntry = data.models[left];
       const rightEntry = data.models[right];
 
-      const leftStatus = leftEntry?.lastStatus === 'alive' ? 2 : leftEntry?.lastStatus === 'failed' ? 0 : 1;
-      const rightStatus = rightEntry?.lastStatus === 'alive' ? 2 : rightEntry?.lastStatus === 'failed' ? 0 : 1;
+      const leftStatus =
+        leftEntry?.lastStatus === 'alive'
+          ? 2
+          : leftEntry?.lastStatus === 'failed'
+            ? 0
+            : 1;
+      const rightStatus =
+        rightEntry?.lastStatus === 'alive'
+          ? 2
+          : rightEntry?.lastStatus === 'failed'
+            ? 0
+            : 1;
       if (leftStatus !== rightStatus) {
         return rightStatus - leftStatus;
       }
@@ -363,7 +442,8 @@ export class ModelRegistryStore {
       entry.lastSuccessAt = now;
       entry.lastError = undefined;
       entry.lastLatencyMs = args.latencyMs;
-      entry.totalLatencyMs = (entry.totalLatencyMs ?? 0) + (args.latencyMs ?? 0);
+      entry.totalLatencyMs =
+        (entry.totalLatencyMs ?? 0) + (args.latencyMs ?? 0);
       entry.requestCount += 1;
       entry.successCount += 1;
       if (args.probe) {
@@ -375,8 +455,10 @@ export class ModelRegistryStore {
           (entry.totalInputTokens ?? 0) + (args.usage.inputTokens ?? 0);
         entry.totalOutputTokens =
           (entry.totalOutputTokens ?? 0) + (args.usage.outputTokens ?? 0);
-        entry.totalTokens = (entry.totalTokens ?? 0) + (args.usage.totalTokens ?? 0);
-        entry.totalCostUsd = (entry.totalCostUsd ?? 0) + (args.usage.costUsd ?? 0);
+        entry.totalTokens =
+          (entry.totalTokens ?? 0) + (args.usage.totalTokens ?? 0);
+        entry.totalCostUsd =
+          (entry.totalCostUsd ?? 0) + (args.usage.costUsd ?? 0);
       }
       if (!entry.sources.includes(args.source)) {
         entry.sources.push(args.source);
@@ -404,7 +486,8 @@ export class ModelRegistryStore {
       entry.lastFailureAt = now;
       entry.lastError = args.error;
       entry.lastLatencyMs = args.latencyMs;
-      entry.totalLatencyMs = (entry.totalLatencyMs ?? 0) + (args.latencyMs ?? 0);
+      entry.totalLatencyMs =
+        (entry.totalLatencyMs ?? 0) + (args.latencyMs ?? 0);
       entry.requestCount += 1;
       entry.failureCount += 1;
       if (args.probe) {
@@ -416,8 +499,10 @@ export class ModelRegistryStore {
           (entry.totalInputTokens ?? 0) + (args.usage.inputTokens ?? 0);
         entry.totalOutputTokens =
           (entry.totalOutputTokens ?? 0) + (args.usage.outputTokens ?? 0);
-        entry.totalTokens = (entry.totalTokens ?? 0) + (args.usage.totalTokens ?? 0);
-        entry.totalCostUsd = (entry.totalCostUsd ?? 0) + (args.usage.costUsd ?? 0);
+        entry.totalTokens =
+          (entry.totalTokens ?? 0) + (args.usage.totalTokens ?? 0);
+        entry.totalCostUsd =
+          (entry.totalCostUsd ?? 0) + (args.usage.costUsd ?? 0);
       }
       if (!entry.sources.includes(args.source)) {
         entry.sources.push(args.source);
