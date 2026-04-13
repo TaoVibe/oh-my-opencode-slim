@@ -77,9 +77,21 @@ function laneMetadataScore(
   const contextWindow = metadataNumber(entry, 'contextWindow');
   const supportsTools = metadataBoolean(entry, 'supportsTools');
   const supportsReasoning = metadataBoolean(entry, 'supportsReasoning');
+  const averageLatencyMs =
+    entry && entry.requestCount > 0 && entry.totalLatencyMs !== undefined
+      ? entry.totalLatencyMs / entry.requestCount
+      : 0;
+  const latencyPenaltyCheap = averageLatencyMs / 20_000;
+  const latencyPenaltyValue = averageLatencyMs / 40_000;
+  const latencyPenaltyPremium = averageLatencyMs / 80_000;
 
   if (lane === 'cheap') {
-    return contextWindow / 1_000_000 - inputPrice * 4 - outputPrice * 2;
+    return (
+      contextWindow / 1_000_000 -
+      inputPrice * 4 -
+      outputPrice * 2 -
+      latencyPenaltyCheap
+    );
   }
 
   if (lane === 'value') {
@@ -88,7 +100,8 @@ function laneMetadataScore(
       (supportsTools ? 1 : 0) +
       (supportsReasoning ? 0.5 : 0) -
       inputPrice * 2 -
-      outputPrice
+      outputPrice -
+      latencyPenaltyValue
     );
   }
 
@@ -97,7 +110,8 @@ function laneMetadataScore(
     (supportsTools ? 1 : 0) +
     (supportsReasoning ? 1 : 0) -
     inputPrice * 0.5 -
-    outputPrice * 0.25
+    outputPrice * 0.25 -
+    latencyPenaltyPremium
   );
 }
 

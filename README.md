@@ -102,8 +102,13 @@ Guide: [docs/tools.md](docs/tools.md) · [docs/configuration.md](docs/configurat
 This fork also includes runtime operator controls for model visibility and session-scoped overrides:
 
 - `observability_status` — inspect active tasks, effective models, fallback chains, panes, and current session overrides
+- `routing_doctor` — summarize the current route graph and flag degraded / blocked lanes
+- `model_registry_status` — inspect persisted per-model health across probes and runtime events
+- `model_registry_probe` — probe a targeted list of models and persist success/failure
 - `session_agent_model` — override delegated agent models for the current session only
 - compact launch-time model/fallback metadata on `task(...)` and `background_task(...)`
+
+The orchestrator also receives a compact runtime `<RoutingHealth>` summary in fresh sessions so it can naturally avoid blocked routes and prefer healthier alternates without requiring a dedicated skill.
 
 ### ✅ Verify Your Setup
 

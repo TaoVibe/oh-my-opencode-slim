@@ -95,6 +95,32 @@ describe('ModelRegistryStore', () => {
     }
   });
 
+  test('cheap lane penalizes very high average latency', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'omo-registry-'));
+    const path = join(dir, 'model-registry.json');
+    const store = new ModelRegistryStore(path);
+
+    try {
+      store.upsertMetadata({
+        model: 'slow/model',
+        metadata: { inputUsdPerM: 0.02, outputUsdPerM: 0.05, contextWindow: 120000 },
+      });
+      store.upsertMetadata({
+        model: 'fast/model',
+        metadata: { inputUsdPerM: 0.03, outputUsdPerM: 0.06, contextWindow: 120000 },
+      });
+      store.recordSuccess({ model: 'slow/model', source: 'probe', latencyMs: 18000 });
+      store.recordSuccess({ model: 'fast/model', source: 'probe', latencyMs: 1000 });
+
+      expect(store.getBiasedModelChain(['slow/model', 'fast/model'], 'cheap')).toEqual([
+        'fast/model',
+        'slow/model',
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test('normalizes legacy chutes vendor keys into canonical chutes provider keys', () => {
     const dir = mkdtempSync(join(tmpdir(), 'omo-registry-'));
     const path = join(dir, 'model-registry.json');
