@@ -1,9 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { createObservabilityTool } from './observability';
+import { join } from 'node:path';
 import { ModelRegistryStore } from '../utils/model-registry';
+import { createObservabilityTool } from './observability';
 
 describe('observability_status tool', () => {
   test('shows active task and pane runtime state', async () => {
@@ -29,7 +29,9 @@ describe('observability_status tool', () => {
             ],
           },
         ],
-        getSessionAgentModelOverrides: () => ({ explorer: 'openai/gpt-5.4-mini' }),
+        getSessionAgentModelOverrides: () => ({
+          explorer: 'openai/gpt-5.4-mini',
+        }),
         getModelHealthSnapshots: () => [
           {
             model: 'XiaomiMiMo/MiMo-V2-Flash-TEE',
@@ -51,7 +53,9 @@ describe('observability_status tool', () => {
             lastSeenAt: 2,
           },
         ],
-        getSessionAgentModelOverrides: () => ({ explorer: 'openai/gpt-5.4-mini' }),
+        getSessionAgentModelOverrides: () => ({
+          explorer: 'openai/gpt-5.4-mini',
+        }),
       } as any,
       {
         routing: {
@@ -61,6 +65,16 @@ describe('observability_status tool', () => {
             },
           },
         },
+      } as any,
+      undefined,
+      undefined,
+      {
+        getSessionStats: () => ({
+          sawPrometheus: true,
+          sawMomus: false,
+          warningCounts: { prometheus: 1, momus: 2 },
+          overrideCounts: { prometheus: 0, momus: 1 },
+        }),
       } as any,
     );
 
@@ -84,6 +98,9 @@ describe('observability_status tool', () => {
     );
     expect(result).toContain('Session Overrides');
     expect(result).toContain('explorer=openai/gpt-5.4-mini');
+    expect(result).toContain('Must-Invoke Observability');
+    expect(result).toContain('prometheus: saw=yes | warnings=1 | overrides=0');
+    expect(result).toContain('momus: saw=no | warnings=2 | overrides=1');
     expect(result).toContain('Model Health');
     expect(result).toContain('XiaomiMiMo/MiMo-V2-Flash-TEE | cooling=yes');
     expect(result).toContain('Route Diagnostics');
@@ -125,13 +142,28 @@ describe('observability_status tool', () => {
           },
         },
       } as any,
+      undefined,
+      undefined,
+      {
+        getSessionStats: () => ({
+          sawPrometheus: false,
+          sawMomus: false,
+          warningCounts: { prometheus: 0, momus: 0 },
+          overrideCounts: { prometheus: 2, momus: 2 },
+        }),
+      } as any,
     );
 
-    const result = await tools.routing_doctor.execute({}, {} as any);
+    const result = await tools.routing_doctor.execute({}, {
+      sessionID: 'parent-1',
+    } as any);
 
     expect(result).toContain('Routing Doctor');
     expect(result).toContain('Verdict: routing is degraded.');
     expect(result).toContain('planning/value');
+    expect(result).toContain(
+      'Override Warning: current session has 4 must-invoke overrides',
+    );
     expect(result).toContain(
       'preferred=XiaomiMiMo/MiMo-V2-Flash-TEE | effective=Qwen/Qwen3-235B-A22B-Instruct-2507-TEE',
     );
@@ -208,7 +240,9 @@ describe('observability_status tool', () => {
       { sessionID: 'parent-1' } as any,
     );
 
-    expect(result).toContain('bg_done | oracle | completed | Review routing policy');
+    expect(result).toContain(
+      'bg_done | oracle | completed | Review routing policy',
+    );
     expect(result).toContain('completedAt=2026-04-12T00:00:05.000Z');
     expect(result).toContain('resultFetched=2026-04-12T00:00:07.000Z');
   });

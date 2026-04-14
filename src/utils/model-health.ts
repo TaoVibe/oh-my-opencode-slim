@@ -14,6 +14,10 @@ export interface ModelHealthSnapshot {
   isCooling: boolean;
 }
 
+interface FilterChainOptions {
+  preserveOriginalOnExhaustion?: boolean;
+}
+
 function classifyFailure(message: string): 'immediate' | 'transient' | 'other' {
   const text = message.toLowerCase();
 
@@ -79,13 +83,17 @@ export class ModelHealthTracker {
     return true;
   }
 
-  filterChain(models: string[]): string[] {
+  filterChain(models: string[], options: FilterChainOptions = {}): string[] {
     if (!this.isEnabled()) {
       return models;
     }
 
     const filtered = models.filter((model) => !this.isCooling(model));
-    return filtered.length > 0 ? filtered : models;
+    if (filtered.length > 0) {
+      return filtered;
+    }
+
+    return options.preserveOriginalOnExhaustion === false ? [] : models;
   }
 
   recordSuccess(model?: string): void {

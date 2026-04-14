@@ -1,33 +1,36 @@
-import type { Plugin } from '@opencode-ai/plugin';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import type { Plugin } from '@opencode-ai/plugin';
 import { createAgents, getAgentConfigs } from './agents';
 import { BackgroundTaskManager, MultiplexerSessionManager } from './background';
+import { getConfigSearchDirs } from './cli/paths';
 import { loadPluginConfig, type MultiplexerConfig } from './config';
-import { getAllowedModels, isStrictFreeStack } from './config/model-policy';
 import { parseList } from './config/agent-mcps';
+import { getAllowedModels, isStrictFreeStack } from './config/model-policy';
 import {
   applyNativePermissionHints,
   loadBashPermissionsFromOpenCodeConfig,
 } from './config/native-permissions';
-import type { BashPermissionPatterns } from './hooks/tool-policy';
 import { CouncilManager } from './council';
 import {
   createApplyPatchHook,
   createAutoUpdateCheckerHook,
   createChatHeadersHook,
   createClaudeCodeHooksHook,
+  createContextCompactionHook,
   createDelegateTaskRetryHook,
-  ForegroundFallbackManager,
   createFilterAvailableSkillsHook,
   createIntentRouterHook,
   createJsonErrorRecoveryHook,
+  createMustInvokeGuardHook,
   createPhaseReminderHook,
   createPostFileToolNudgeHook,
   createReviewerOutputValidateHook,
   createTodoContinuationHook,
   createToolPolicyHook,
+  ForegroundFallbackManager,
 } from './hooks';
+import type { BashPermissionPatterns } from './hooks/tool-policy';
 import { createInterviewManager } from './interview';
 import { createBuiltinMcps } from './mcp';
 import { getMultiplexer, startAvailabilityCheck } from './multiplexer';
@@ -46,9 +49,8 @@ import {
   lsp_rename,
   setUserLspConfig,
 } from './tools';
-import { log } from './utils/logger';
 import { ModelRegistryStore } from './utils';
-import { getConfigSearchDirs } from './cli/paths';
+import { log } from './utils/logger';
 
 const OhMyOpenCodeLite: Plugin = async (ctx) => {
   const pluginStartedAt = new Date().toISOString();
@@ -99,7 +101,9 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     : undefined;
   if (allowedModels) {
     for (const [agentName, chain] of Object.entries(runtimeChains)) {
-      runtimeChains[agentName] = chain.filter((model) => allowedModels.has(model));
+      runtimeChains[agentName] = chain.filter((model) =>
+        allowedModels.has(model),
+      );
     }
   }
 
@@ -170,6 +174,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     ctx,
     multiplexerConfig,
   );
+  const mustInvokeGuardHook = createMustInvokeGuardHook();
   const observabilityTools = createObservabilityTool(
     backgroundManager,
     multiplexerSessionManager,
@@ -187,6 +192,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       buildArtifactPaths: [fileURLToPath(import.meta.url)],
     },
     modelRegistry,
+    mustInvokeGuardHook,
   );
 
   // Initialize auto-update checker hook
@@ -197,6 +203,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
   // Initialize phase reminder hook for workflow compliance
   const phaseReminderHook = createPhaseReminderHook();
+  const contextCompactionHook = createContextCompactionHook();
 
   // Initialize intent router hook for special workflow phrases
   const intentRouterHook = createIntentRouterHook();
@@ -243,12 +250,17 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
   const foregroundFallback = new ForegroundFallbackManager(
     ctx.client,
     runtimeChains,
-    config.fallback?.enabled !== false && Object.keys(runtimeChains).length > 0,
+    config.fallback?.enabled !== false,
     allowedModels,
     config.fallback?.health,
     modelRegistry,
+    isStrictFreeStack(config),
   );
-  const modelRegistryTools = createModelRegistryTool(ctx, config, modelRegistry);
+  const modelRegistryTools = createModelRegistryTool(
+    ctx,
+    config,
+    modelRegistry,
+  );
 
   // Initialize todo-continuation hook (opt-in auto-continue for incomplete todos)
   const todoContinuationHook = createTodoContinuationHook(ctx, {
@@ -605,6 +617,19 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
           };
         },
       );
+
+      await mustInvokeGuardHook.event(
+        input as {
+          event: {
+            type: string;
+            properties?: {
+              info?: { id?: string; parentID?: string };
+              sessionID?: string;
+              agentName?: string;
+            };
+          };
+        },
+      );
     },
 
     'permission.ask': async (input, output) => {
@@ -717,21 +742,23 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         );
         if (!alreadyInjected) {
           // Prepend the orchestrator prompt to the system array
-          const [{ ORCHESTRATOR_PROMPT }, routingDiagnostics] = await Promise.all([
-            import('./agents/orchestrator'),
-            import('./config'),
-          ]);
-          const routingHealthNotice = routingDiagnostics.buildRoutingHealthNotice(
-            routingDiagnostics.buildRoutingDiagnostics(
-              config,
-              backgroundManager.getModelHealthSnapshots(),
-              modelRegistry.load(),
-            ),
+          const [{ composeOrchestratorSystemMessages }, routingDiagnostics] =
+            await Promise.all([
+              import('./agents/orchestrator'),
+              import('./config'),
+            ]);
+          const routingHealthNotice =
+            routingDiagnostics.buildRoutingHealthNotice(
+              routingDiagnostics.buildRoutingDiagnostics(
+                config,
+                backgroundManager.getModelHealthSnapshots(),
+                modelRegistry.load(),
+              ),
+            );
+          output.system = composeOrchestratorSystemMessages(
+            output.system,
+            routingHealthNotice,
           );
-          output.system[0] =
-            ORCHESTRATOR_PROMPT +
-            (routingHealthNotice ? `\n\n${routingHealthNotice}` : '') +
-            (output.system[0] ? `\n\n${output.system[0]}` : '');
         }
       }
       await postFileToolNudgeHook['experimental.chat.system.transform'](
@@ -756,6 +783,14 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
           }>;
         }>;
       };
+      await contextCompactionHook['experimental.chat.messages.transform'](
+        input,
+        typedOutput,
+      );
+      await mustInvokeGuardHook['experimental.chat.messages.transform'](
+        input,
+        typedOutput,
+      );
       await phaseReminderHook['experimental.chat.messages.transform'](
         input,
         typedOutput,

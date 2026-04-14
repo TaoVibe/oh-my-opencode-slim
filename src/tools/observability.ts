@@ -22,6 +22,15 @@ interface RuntimeObservabilityMeta {
   latestBuildMtime?: string;
 }
 
+interface MustInvokeObservabilitySource {
+  getSessionStats(sessionID: string): {
+    sawPrometheus: boolean;
+    sawMomus: boolean;
+    warningCounts: { prometheus: number; momus: number };
+    overrideCounts: { prometheus: number; momus: number };
+  };
+}
+
 function getLatestMtime(paths: string[] | undefined): string | undefined {
   if (!paths || paths.length === 0) {
     return undefined;
@@ -44,6 +53,7 @@ export function createObservabilityTool(
   pluginConfig?: PluginConfig,
   runtimeMeta?: RuntimeObservabilityMeta,
   modelRegistry?: ModelRegistryStore,
+  mustInvokeObservability?: MustInvokeObservabilitySource,
 ): Record<string, ToolDefinition> {
   const routing_doctor = tool({
     description: `Run doctor-style checks for routing freshness and degraded model chains.
@@ -54,7 +64,7 @@ Returns:
 - cooled-only route warnings
 - preferred vs effective route drift`,
     args: {},
-    async execute() {
+    async execute(_args, toolContext) {
       const modelHealth = backgroundManager.getModelHealthSnapshots();
       const registry = modelRegistry?.load();
       const routeDiagnostics = buildRoutingDiagnostics(
@@ -71,6 +81,16 @@ Returns:
       const latestBuildMtime =
         runtimeMeta?.latestBuildMtime ??
         getLatestMtime(runtimeMeta?.buildArtifactPaths);
+      const currentSessionId =
+        toolContext &&
+        typeof toolContext === 'object' &&
+        'sessionID' in toolContext
+          ? String((toolContext as { sessionID: string }).sessionID)
+          : undefined;
+      const mustInvokeStats =
+        currentSessionId && mustInvokeObservability
+          ? mustInvokeObservability.getSessionStats(currentSessionId)
+          : undefined;
       const lines = ['Routing Doctor'];
 
       lines.push(
@@ -190,6 +210,18 @@ Returns:
         }
       }
 
+      if (mustInvokeStats) {
+        const totalOverrides =
+          mustInvokeStats.overrideCounts.prometheus +
+          mustInvokeStats.overrideCounts.momus;
+        if (totalOverrides > 3) {
+          lines.push(
+            '',
+            `Override Warning: current session has ${totalOverrides} must-invoke overrides in the last runtime window. Review routing discipline before continuing.`,
+          );
+        }
+      }
+
       return lines.join('\n');
     },
   });
@@ -236,6 +268,10 @@ Returns:
         modelHealth,
         modelRegistry?.load(),
       );
+      const mustInvokeStats =
+        currentSessionId && mustInvokeObservability
+          ? mustInvokeObservability.getSessionStats(currentSessionId)
+          : undefined;
       const latestConfigMtime =
         runtimeMeta?.latestConfigMtime ??
         getLatestMtime(runtimeMeta?.configPaths);
@@ -304,6 +340,18 @@ Returns:
         for (const [agent, model] of overrideEntries) {
           lines.push(`${agent}=${model}`);
         }
+      }
+
+      lines.push('', 'Must-Invoke Observability');
+      if (!currentSessionId || !mustInvokeStats) {
+        lines.push('(none)');
+      } else {
+        lines.push(
+          `prometheus: saw=${mustInvokeStats.sawPrometheus ? 'yes' : 'no'} | warnings=${mustInvokeStats.warningCounts.prometheus} | overrides=${mustInvokeStats.overrideCounts.prometheus}`,
+        );
+        lines.push(
+          `momus: saw=${mustInvokeStats.sawMomus ? 'yes' : 'no'} | warnings=${mustInvokeStats.warningCounts.momus} | overrides=${mustInvokeStats.overrideCounts.momus}`,
+        );
       }
 
       lines.push('', 'Model Health');

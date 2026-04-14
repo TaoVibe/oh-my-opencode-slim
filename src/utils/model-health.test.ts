@@ -11,14 +11,14 @@ describe('ModelHealthTracker', () => {
       backoffMultiplier: 2,
     });
 
-    tracker.recordFailure('Qwen/Qwen3-Coder-Next-TEE', 'Prompt timed out after 30000ms');
+    tracker.recordFailure(
+      'Qwen/Qwen3-Coder-Next-TEE',
+      'Prompt timed out after 30000ms',
+    );
 
     expect(tracker.isCooling('Qwen/Qwen3-Coder-Next-TEE')).toBe(true);
     expect(
-      tracker.filterChain([
-        'Qwen/Qwen3-Coder-Next-TEE',
-        'openai/gpt-5.4',
-      ]),
+      tracker.filterChain(['Qwen/Qwen3-Coder-Next-TEE', 'openai/gpt-5.4']),
     ).toEqual(['openai/gpt-5.4']);
   });
 
@@ -31,7 +31,10 @@ describe('ModelHealthTracker', () => {
       backoffMultiplier: 2,
     });
 
-    tracker.recordFailure('XiaomiMiMo/MiMo-V2-Flash-TEE', 'Empty response from provider');
+    tracker.recordFailure(
+      'XiaomiMiMo/MiMo-V2-Flash-TEE',
+      'Empty response from provider',
+    );
     expect(tracker.isCooling('XiaomiMiMo/MiMo-V2-Flash-TEE')).toBe(true);
 
     tracker.recordSuccess('XiaomiMiMo/MiMo-V2-Flash-TEE');
@@ -55,7 +58,7 @@ describe('ModelHealthTracker', () => {
     expect(tracker.isCooling('Qwen/Qwen3-Coder-Next-TEE')).toBe(true);
   });
 
-  test('provider-not-found failures cool a model immediately', () => {
+  test('can return empty when exhaustion should stay fail-closed', () => {
     const tracker = new ModelHealthTracker({
       enabled: true,
       failureThreshold: 2,
@@ -65,10 +68,14 @@ describe('ModelHealthTracker', () => {
     });
 
     tracker.recordFailure(
-      'XiaomiMiMo/MiMo-V2-Flash-TEE',
-      'Provider not found: XiaomiMiMo',
+      'openai/gpt-5.4-mini',
+      'Prompt timed out after 30000ms',
     );
 
-    expect(tracker.isCooling('XiaomiMiMo/MiMo-V2-Flash-TEE')).toBe(true);
+    expect(
+      tracker.filterChain(['openai/gpt-5.4-mini'], {
+        preserveOriginalOnExhaustion: false,
+      }),
+    ).toEqual([]);
   });
 });

@@ -1754,8 +1754,6 @@ describe('BackgroundTaskManager', () => {
       );
     });
 
-
-
     test('override does not bleed into other parent sessions or defaults', () => {
       const ctx = createMockContext();
       const manager = new BackgroundTaskManager(ctx, undefined, {
@@ -1867,7 +1865,9 @@ describe('BackgroundTaskManager', () => {
           'explorer',
           'openai/gpt-5.4-mini',
         ),
-      ).toThrow('Model policy blocked openai/gpt-5.4-mini for session override for explorer');
+      ).toThrow(
+        'Model policy blocked openai/gpt-5.4-mini for session override for explorer',
+      );
     });
 
     test('filters disallowed configured and fallback models in strict free stack', () => {
@@ -1897,6 +1897,43 @@ describe('BackgroundTaskManager', () => {
         'opencode/minimax-m2.7-free',
       ]);
     });
-  });
 
+    test('keeps strict free stack fail-closed when all allowed models are cooling', () => {
+      const ctx = createMockContext();
+      const manager = new BackgroundTaskManager(ctx, undefined, {
+        stackMode: 'free',
+        agents: {
+          explorer: { model: 'opencode/minimax-m2.7-free', variant: 'medium' },
+        },
+        fallback: {
+          enabled: true,
+          timeoutMs: 30000,
+          retryDelayMs: 500,
+          health: {
+            enabled: true,
+            failureThreshold: 1,
+            cooldownMs: 60_000,
+            maxCooldownMs: 60_000,
+            backoffMultiplier: 2,
+          },
+          chains: {
+            explorer: ['opencode/minimax-m2.7-free'],
+          },
+        },
+        modelPolicy: {
+          enforceAllowlist: true,
+          allowedModels: ['opencode/minimax-m2.7-free'],
+          failClosed: true,
+        },
+      } as any);
+
+      (manager as any).modelHealth.recordFailure(
+        'opencode/minimax-m2.7-free',
+        'Prompt timed out after 30000ms',
+      );
+
+      expect(manager.resolveConfiguredModel('explorer')).toBeUndefined();
+      expect(manager.resolveFallbackChain('explorer')).toEqual([]);
+    });
+  });
 });

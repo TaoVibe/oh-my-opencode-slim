@@ -27,19 +27,19 @@ import type { MultiplexerConfig } from '../config/schema';
 import { getMultiplexer } from '../multiplexer';
 import {
   applyAgentVariant,
-  ModelRegistryStore,
   type ModelHealthSnapshot,
   ModelHealthTracker,
+  type ModelRegistryStore,
   resolveAgentVariant,
 } from '../utils';
-import { extractUsageMetrics } from '../utils/session';
 import { log } from '../utils/logger';
 import {
   extractSessionResult,
+  extractUsageMetrics,
   type PromptBody,
-  type SessionUsageMetrics,
   parseModelReference,
   promptWithTimeout,
+  type SessionUsageMetrics,
 } from '../utils/session';
 import { SubagentDepthTracker } from './subagent-depth';
 
@@ -286,7 +286,8 @@ export class BackgroundTaskManager {
   ): void {
     assertModelAllowed(model, this.config, `session override for ${agentName}`);
     const sessionOverrides =
-      this.sessionAgentModelOverrides.get(sessionId) ?? new Map<string, string>();
+      this.sessionAgentModelOverrides.get(sessionId) ??
+      new Map<string, string>();
     sessionOverrides.set(agentName, model);
     this.sessionAgentModelOverrides.set(sessionId, sessionOverrides);
   }
@@ -305,9 +306,7 @@ export class BackgroundTaskManager {
     }
   }
 
-  getSessionAgentModelOverrides(
-    sessionId: string,
-  ): Record<string, string> {
+  getSessionAgentModelOverrides(sessionId: string): Record<string, string> {
     return Object.fromEntries(
       this.sessionAgentModelOverrides.get(sessionId)?.entries() ?? [],
     );
@@ -327,7 +326,10 @@ export class BackgroundTaskManager {
     sessionId?: string,
     routeModelChain?: string[],
   ): string[] {
-    const sessionOverride = this.getSessionAgentModelOverride(sessionId, agentName);
+    const sessionOverride = this.getSessionAgentModelOverride(
+      sessionId,
+      agentName,
+    );
     const fallback = this.config?.fallback;
     const chains = fallback?.chains as
       | Record<string, string[] | undefined>
@@ -348,7 +350,12 @@ export class BackgroundTaskManager {
       primaryIds = [];
     }
     const modelsToUse = sessionOverride
-      ? [sessionOverride, ...(routeModelChain ?? []), ...primaryIds, ...configuredChain]
+      ? [
+          sessionOverride,
+          ...(routeModelChain ?? []),
+          ...primaryIds,
+          ...configuredChain,
+        ]
       : [...(routeModelChain ?? []), ...primaryIds, ...configuredChain];
     for (const model of modelsToUse) {
       if (!model || seen.has(model)) continue;
@@ -356,7 +363,12 @@ export class BackgroundTaskManager {
       chain.push(model);
     }
 
-    return this.modelHealth.filterChain(filterAllowedModels(chain, this.config));
+    return this.modelHealth.filterChain(
+      filterAllowedModels(chain, this.config),
+      {
+        preserveOriginalOnExhaustion: !shouldFailClosed(this.config),
+      },
+    );
   }
 
   resolveConfiguredModel(
@@ -364,10 +376,14 @@ export class BackgroundTaskManager {
     sessionId?: string,
     routeModelChain?: string[],
   ): string | undefined {
-    const sessionOverride = this.getSessionAgentModelOverride(sessionId, agentName);
+    const sessionOverride = this.getSessionAgentModelOverride(
+      sessionId,
+      agentName,
+    );
     if (sessionOverride) {
       return this.modelHealth.filterChain(
         filterAllowedModels([sessionOverride], this.config),
+        { preserveOriginalOnExhaustion: !shouldFailClosed(this.config) },
       )[0];
     }
     const model = this.config?.agents?.[agentName]?.model;
@@ -376,20 +392,20 @@ export class BackgroundTaskManager {
       const first = model[0];
       return this.modelHealth.filterChain(
         filterAllowedModels(
-        [
-          ...(routeModelChain ?? []),
-          typeof first === 'string' ? first : first?.id,
-        ].filter(
-          (value): value is string => Boolean(value),
-        ),
+          [
+            ...(routeModelChain ?? []),
+            typeof first === 'string' ? first : first?.id,
+          ].filter((value): value is string => Boolean(value)),
           this.config,
         ),
+        { preserveOriginalOnExhaustion: !shouldFailClosed(this.config) },
       )[0];
     }
 
     if (typeof model === 'string') {
       return this.modelHealth.filterChain(
         filterAllowedModels([...(routeModelChain ?? []), model], this.config),
+        { preserveOriginalOnExhaustion: !shouldFailClosed(this.config) },
       )[0];
     }
 
@@ -401,6 +417,7 @@ export class BackgroundTaskManager {
         ].filter((value): value is string => Boolean(value)),
         this.config,
       ),
+      { preserveOriginalOnExhaustion: !shouldFailClosed(this.config) },
     )[0];
   }
 
@@ -843,9 +860,15 @@ export class BackgroundTaskManager {
       startedAt: task.startedAt.toISOString(),
       completedAt: task.completedAt?.toISOString(),
       resultConsumedAt: task.resultConsumedAt?.toISOString(),
-      configuredModel: this.resolveConfiguredModel(task.agent, task.parentSessionId),
+      configuredModel: this.resolveConfiguredModel(
+        task.agent,
+        task.parentSessionId,
+      ),
       variant: this.resolveConfiguredVariant(task.agent, task.parentSessionId),
-      fallbackChain: this.resolveFallbackChain(task.agent, task.parentSessionId),
+      fallbackChain: this.resolveFallbackChain(
+        task.agent,
+        task.parentSessionId,
+      ),
       category: task.category,
       lane: task.lane,
       routeModelChain: task.routeModelChain,

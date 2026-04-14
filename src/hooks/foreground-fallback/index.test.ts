@@ -28,7 +28,7 @@ function createMockClient(overrides?: {
         // promptAsync is cast at runtime — expose via the session object
         promptAsync,
       },
-    } as unknown as Parameters<typeof ForegroundFallbackManager>[0],
+    } as unknown as ConstructorParameters<typeof ForegroundFallbackManager>[0],
     mocks: { promptAsync, abort, messages },
   };
 }
@@ -415,6 +415,47 @@ describe('ForegroundFallbackManager chain exhaustion', () => {
       },
     });
     expect(mocks2.promptAsync).not.toHaveBeenCalled();
+  });
+
+  test('stays fail-closed in strict free mode when the only allowed model is cooling', async () => {
+    const { client, mocks } = createMockClient();
+    const mgr = new ForegroundFallbackManager(
+      client,
+      { explorer: ['opencode/minimax-m2.7-free'] },
+      true,
+      new Set(['opencode/minimax-m2.7-free']),
+      {
+        enabled: true,
+        failureThreshold: 1,
+        cooldownMs: 60_000,
+        maxCooldownMs: 60_000,
+        backoffMultiplier: 2,
+      },
+      undefined,
+      true,
+    );
+
+    await mgr.handleEvent({
+      type: 'message.updated',
+      properties: {
+        info: {
+          sessionID: 'sess-free',
+          agent: 'explorer',
+          providerID: 'opencode',
+          modelID: 'minimax-m2.7-free',
+        },
+      },
+    });
+
+    await mgr.handleEvent({
+      type: 'session.error',
+      properties: {
+        sessionID: 'sess-free',
+        error: { message: 'Rate limit exceeded' },
+      },
+    });
+
+    expect(mocks.promptAsync).not.toHaveBeenCalled();
   });
 });
 

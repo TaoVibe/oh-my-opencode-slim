@@ -23,6 +23,26 @@ export function resolvePrompt(
   return base;
 }
 
+export function composeOrchestratorSystemMessages(
+  existingSystem: string[],
+  routingHealthNotice?: string,
+): string[] {
+  const messages = [ORCHESTRATOR_PROMPT];
+
+  for (const entry of existingSystem) {
+    if (!entry || entry === ORCHESTRATOR_PROMPT) {
+      continue;
+    }
+    messages.push(entry);
+  }
+
+  if (routingHealthNotice) {
+    messages.push(routingHealthNotice);
+  }
+
+  return messages;
+}
+
 export const ORCHESTRATOR_PROMPT = `<Role>
 You are an AI coding orchestrator that optimizes for quality, speed, cost, and reliability by delegating to specialists when it provides net efficiency gains.
 </Role>

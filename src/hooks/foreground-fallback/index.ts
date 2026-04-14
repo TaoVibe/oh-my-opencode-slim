@@ -18,7 +18,7 @@ import type { PluginInput } from '@opencode-ai/plugin';
 import type { FallbackHealthConfig } from '../../config/schema';
 import { log } from '../../utils/logger';
 import { ModelHealthTracker } from '../../utils/model-health';
-import { ModelRegistryStore } from '../../utils/model-registry';
+import type { ModelRegistryStore } from '../../utils/model-registry';
 
 type OpencodeClient = PluginInput['client'];
 
@@ -115,6 +115,7 @@ export class ForegroundFallbackManager {
     private readonly allowedModels?: ReadonlySet<string>,
     healthConfig?: FallbackHealthConfig,
     private readonly modelRegistry?: ModelRegistryStore,
+    private readonly failClosed = false,
   ) {
     this.modelHealth = new ModelHealthTracker(healthConfig);
   }
@@ -379,6 +380,7 @@ export class ForegroundFallbackManager {
       // Never fall through to cross-agent chains when the agent is identified.
       return this.modelHealth.filterChain(
         filterAllowed(this.chains[agentName] ?? [], this.allowedModels),
+        { preserveOriginalOnExhaustion: !this.failClosed },
       );
     }
 
@@ -388,6 +390,7 @@ export class ForegroundFallbackManager {
         if (chain.includes(currentModel)) {
           return this.modelHealth.filterChain(
             filterAllowed(chain, this.allowedModels),
+            { preserveOriginalOnExhaustion: !this.failClosed },
           );
         }
       }
@@ -405,6 +408,11 @@ export class ForegroundFallbackManager {
         }
       }
     }
-    return this.modelHealth.filterChain(filterAllowed(all, this.allowedModels));
+    return this.modelHealth.filterChain(
+      filterAllowed(all, this.allowedModels),
+      {
+        preserveOriginalOnExhaustion: !this.failClosed,
+      },
+    );
   }
 }

@@ -40,6 +40,8 @@ const ALLOW_BASH_PATTERNS: Array<[RegExp, string]> = [
   [TAR_LIST_PATTERN, 'tar-list'],
   [/\b(?:py-spy|memray|scalene)\b/, 'profiler'],
   [SAFE_BUNX_BIOME_PATTERN, 'bunx-biome'],
+  // Safe npx patterns - common dev tools that are allowlisted in config
+  [/^npx\s+(?:tsc|vite|vitest|eslint|biome|playwright|npm|typescript|nx)\b/, 'npx-safe'],
 ];
 
 const DENY_BASH_PATTERNS: Array<[RegExp, string, string]> = [
@@ -53,12 +55,28 @@ const DENY_BASH_PATTERNS: Array<[RegExp, string, string]> = [
     'git-force-push',
     'Force push can destroy remote history.',
   ],
+  // Discarding unstaged changes
+  [
+    /\bgit\s+(?:checkout|restore)\s+--\s+.*/,
+    'git-checkout-discard',
+    'git checkout -- <file> discards unstaged changes.',
+  ],
+  [
+    /\bgit\s+reset\s+HEAD\s+.*\s*&&\s*git\s+checkout\s+--\s+.*/,
+    'git-reset-checkout-discard',
+    'git reset HEAD && git checkout discards staged changes.',
+  ],
+  // Resetting to previous commit (already exists as git-hard-reset, but add explicit)
   [
     /\bgit\s+reset\s+--hard\b/,
     'git-hard-reset',
     'Hard reset discards uncommitted changes.',
   ],
   [
+    /\bgit\s+reset\s+--(?:soft|mixed|hard)\s+[a-f0-9]+\b/,
+    'git-reset-commit',
+    'Resetting to a specific commit discards changes.',
+  ],  [
     /\bgit\s+clean\s+-[a-zA-Z]*f\b/,
     'git-clean-force',
     'Force clean permanently deletes untracked files.',
