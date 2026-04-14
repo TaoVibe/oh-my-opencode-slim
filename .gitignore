@@ -46,6 +46,7 @@ local
 opencode
 oh-my-opencode
 opencode.jsonc
+model-registry.json
 
 # AI Memory
 .aim/
